@@ -321,7 +321,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
           Fill box &amp; ellipse <span class="state">outline</span>
         </button>
         <button class="toggle" id="mirror" aria-pressed="false">
-          Mirror left / right <span class="state">off</span>
+          Symmetric shape <span class="state">off</span>
         </button>
       </div>
 
@@ -458,17 +458,23 @@ function paint(r, c, t, col) {
 }
 
 /**
- * Add the mirrored half. Everything that draws -- the live preview and the
- * commit -- goes through this, so what you see while dragging is exactly what
- * lands. The grid is 36 wide, so the axis falls between columns 17 and 18 and
- * there is no single centre column to sit on.
+ * Fold the shape onto itself so it comes out left-right symmetric, about its
+ * OWN centre -- it stays exactly where it was drawn, it does not gain a copy on
+ * the far side of the grid. Preview and commit both go through here, so what
+ * you see while dragging is what lands.
  */
+function mirrorAxis(list) {
+  let lo = Infinity, hi = -Infinity;
+  for (const p of list) { if (p.c < lo) lo = p.c; if (p.c > hi) hi = p.c; }
+  return lo + hi;                      // mirrored column = axis - c
+}
 function withMirror(list) {
-  if (!mirror) return list;
+  if (!mirror || !list.length) return list;
+  const axis = mirrorAxis(list);
   const out = list.slice();
   const seen = new Set(list.map((p) => kk(p.r, p.c)));
   for (const p of list) {
-    const m = COLS - 1 - p.c;
+    const m = axis - p.c;
     if (m === p.c || seen.has(kk(p.r, m))) continue;
     seen.add(kk(p.r, m));
     out.push({ r: p.r, c: m, color: p.color });
@@ -682,12 +688,16 @@ function drawGrid(preview) {
       gctx.restore();
     }
 
-  if (mirror) {
+  if (mirror && preview && preview.length) {
+    const axis = mirrorAxis(preview);                 // in cells, may be a half
+    let top = PLAY_ROWS, bot = 0;
+    for (const p of preview) { if (p.r < top) top = p.r; if (p.r > bot) bot = p.r; }
     gctx.save();
-    gctx.strokeStyle = "rgba(224,49,87,.55)";
-    gctx.lineWidth = 2; gctx.setLineDash([6, 5]);
+    gctx.strokeStyle = "rgba(224,49,87,.6)";
+    gctx.lineWidth = 2; gctx.setLineDash([5, 4]);
+    const x = (axis / 2 + .5) * CELL;
     gctx.beginPath();
-    gctx.moveTo((COLS / 2) * CELL, 0); gctx.lineTo((COLS / 2) * CELL, GRID_H);
+    gctx.moveTo(x, top * CELL - CELL); gctx.lineTo(x, (bot + 2) * CELL);
     gctx.stroke();
     gctx.restore();
   }
@@ -790,6 +800,21 @@ const inGrid = (p) => p.r >= 0 && p.c >= 0 && p.r < PLAY_ROWS && p.c < COLS;
 let stroke = null;   // an in-progress drag
 let curve = null;    // a curve waiting for its bend
 let ghost = [];      // cells the pending action would paint
+let penBase = null;  // grid as it was when a pencil stroke began
+let penPts = [], penSeen = null;
+
+/** Add a segment to the live pencil stroke and repaint it whole. */
+function extendPen(a, b) {
+  for (const [r, c] of lineCells(a.r, a.c, b.r, b.c)) {   // fill gaps a fast drag leaves
+    const k = kk(r, c);
+    if (penSeen.has(k)) continue;
+    penSeen.add(k);
+    penPts.push({ r, c, color: null });
+  }
+  cells = penBase.map((row) => row.map((x) => ({ ...x })));
+  for (const q of withMirror(penPts)) paint(q.r, q.c, stroke.erase ? "empty" : tool, colour);
+  render(mirror ? withMirror(penPts) : null);
+}
 
 function commit(list, erase) {
   if (!list.length) return;
@@ -821,11 +846,13 @@ gridCv.addEventListener("pointerdown", (ev) => {
   if (shape === "stamp") { commit(stampAt(p.r, p.c), erase); return; }
 
   if (shape === "pencil") {
+    // A stroke is one shape, so its fold axis is the whole stroke's centre --
+    // which grows as you draw. Replay the stroke from a snapshot each move
+    // rather than mirroring each segment about its own tiny bounds.
     pushUndo();
-    stroke = { a: p, b: p, erase, painted: true };
-    for (const q of withMirror([{ r: p.r, c: p.c, color: null }]))
-      paint(q.r, q.c, erase ? "empty" : tool, colour);
-    render();
+    penBase = snap(); penPts = []; penSeen = new Set();
+    stroke = { a: p, b: p, erase };
+    extendPen(p, p);
     return;
   }
   stroke = { a: p, b: p, erase, painted: false };
@@ -853,11 +880,8 @@ gridCv.addEventListener("pointermove", (ev) => {
   stroke.b = { r: Math.max(0, Math.min(PLAY_ROWS - 1, p.r)),
                c: Math.max(0, Math.min(COLS - 1, p.c)) };
   if (shape === "pencil") {
-    // fill the gap a fast drag leaves between samples
-    const seg = lineCells(stroke.a.r, stroke.a.c, stroke.b.r, stroke.b.c).map(([r, c]) => ({ r, c }));
-    for (const q of withMirror(seg)) paint(q.r, q.c, stroke.erase ? "empty" : tool, colour);
+    extendPen(stroke.a, stroke.b);
     stroke.a = stroke.b;
-    render();
   } else {
     ghost = withMirror(shapeCells(shape, stroke.a, stroke.b, stroke.b));
     render(ghost);
@@ -867,7 +891,7 @@ gridCv.addEventListener("pointermove", (ev) => {
 addEventListener("pointerup", () => {
   if (!stroke) return;
   const st = stroke; stroke = null;
-  if (shape === "pencil") { render(); return; }
+  if (shape === "pencil") { penBase = null; penPts = []; penSeen = null; ghost = []; render(); return; }
   if (shape === "curve") {
     // hold the chord and let the next move bend it; a click commits
     curve = { a: st.a, b: st.b, erase: st.erase };
