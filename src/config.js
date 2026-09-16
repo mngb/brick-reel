@@ -24,7 +24,7 @@ export const defaultConfig = {
   bg: '#080A14',
 
   maxDuration: 600,  // hard cap, seconds (10 min)
-  outro: 3.0,        // seconds of victory lap after the last brick
+  outro: 1.5,        // seconds of play after the last brick, then the file ends
   slowmo: true,      // slow motion as a ball closes in on the final brick
   slowmoFactor: 4,
   slowmoRadius: 430, // px: only slow down once the kill is imminent
@@ -96,5 +96,6 @@ export const defaultConfig = {
     // mark. The steady speedGain above does most of the pacing work.
     splitAt: [0.22, 0.10],
   },
-  paddle: { cols: 5, h: 18, speed: 2800, sloppiness: 0.9, wideFactor: 1.9 },
+  paddle: { cols: 5, h: 18, speed: 2800, sloppiness: 0.9,
+             wideStep: 1.5, wideMax: 4.5 },   // each pickup multiplies, up to wideMax
 };

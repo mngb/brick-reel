@@ -305,7 +305,11 @@ function drawTrails(ctx, state, fx) {
   for (const b of state.balls) {
     const t = fx.trails.get(b.id);
     if (!t || t.length < 2) continue;
+    const jump = Math.min(state.cfg.field.w, state.cfg.field.h) * 0.5;
     for (let i = 1; i < t.length; i++) {
+      // A wrap puts two consecutive samples on opposite edges; joining them
+      // would draw a streak straight across the screen.
+      if (Math.hypot(t[i].x - t[i - 1].x, t[i].y - t[i - 1].y) > jump) continue;
       const k = 1 - i / t.length;
       ctx.globalAlpha = k * k * 0.75;
       ctx.lineWidth = b.r * 1.9 * k;
@@ -368,34 +372,6 @@ function drawFloor(ctx, cfg) {
   ctx.fillRect(field.x, y - 2, field.w, 3);
 }
 
-/** Victory card: the mosaic reassembles as a glow where the bricks used to be. */
-function drawEndCard(ctx, state) {
-  if (!state.cleared) return;
-  const k = Math.min(1, (state.t - state.clearedAt) / 0.55);
-  if (k <= 0) return;
-  const ease = 1 - Math.pow(1 - k, 3);
-  const { x0, y0, cw, ch, gap, grid, rowColors } = state.layout;
-  const cx = x0 + (grid.w * (cw + gap) - gap) / 2;
-  const cy = y0 + (grid.h * (ch + gap) - gap) / 2;
-  const sc = 0.86 + 0.14 * ease;
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.translate(cx, cy); ctx.scale(sc, sc); ctx.translate(-cx, -cy);
-  ctx.globalAlpha = ease * 0.85;
-  ctx.shadowBlur = 26;
-  for (let r = 0; r < grid.h; r++) {
-    for (let c = 0; c < grid.w; c++) {
-      if (!grid.cells[r][c]) continue;
-      const col = rowColors[r];
-      ctx.fillStyle = col; ctx.shadowColor = col;
-      roundRect(ctx, x0 + c * (cw + gap), y0 + r * (ch + gap), cw, ch, Math.min(6, ch * 0.28));
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-
 function drawVignette(ctx, cfg) {
   const { width: W, height: H } = cfg;
   const rg = ctx.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 0.78);
@@ -428,7 +404,6 @@ export function draw(ctx, state, fx) {
   drawWrapEdges(ctx, cfg, state);
   drawPaddle(ctx, state);
   drawBalls(ctx, state);
-  drawEndCard(ctx, state);
 
   ctx.restore();
 

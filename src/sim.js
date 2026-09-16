@@ -44,7 +44,7 @@ export function createState(cfg) {
     drops: [],
     // Each timed effect is just a deadline on the clock.
     pierceUntil: -1, wideUntil: -1, freezeUntil: -1, wrapUntil: -1,
-    paddleBaseW: paddleW,
+    paddleBaseW: paddleW, paddleMul: 1,
     splitsLeft: [...cfg.ball.splitAt],
     balls, layout, gaps, groups, mapRows,
     solidCells: new Set(solids.map((b) => b.row * 4096 + b.col)),
@@ -210,7 +210,8 @@ function aimOffset(state, landing) {
 
 function movePaddle(state, dt) {
   const { cfg, paddle } = state, { field } = cfg;
-  paddle.w = state.paddleBaseW * (widened(state) ? cfg.paddle.wideFactor : 1);
+  if (!widened(state)) state.paddleMul = 1;          // the stack lapses with the timer
+  paddle.w = Math.min(field.w * 0.6, state.paddleBaseW * state.paddleMul);
   const half = paddle.w / 2;
 
   // Commit to whichever ball lands soonest; the rest are the floor's problem.
@@ -310,7 +311,11 @@ function applyDrop(state, d, events) {
       }
     }
   } else if (d.kind === 'pierce') state.pierceUntil = until('pierce');
-  else if (d.kind === 'wide')     state.wideUntil   = until('wide');
+  else if (d.kind === 'wide') {
+    // Stacks: another pickup multiplies the paddle again and restarts the clock.
+    state.paddleMul = Math.min(cfg.paddle.wideMax, state.paddleMul * cfg.paddle.wideStep);
+    state.wideUntil = until('wide');
+  }
   else if (d.kind === 'freeze')   state.freezeUntil = until('freeze');
   else if (d.kind === 'wrap')     state.wrapUntil   = until('wrap');
 }
