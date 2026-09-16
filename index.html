@@ -321,7 +321,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
           Fill box &amp; ellipse <span class="state">outline</span>
         </button>
         <button class="toggle" id="mirror" aria-pressed="false">
-          Symmetric shape <span class="state">off</span>
+          Flip horizontally <span class="state">off</span>
         </button>
       </div>
 
@@ -458,28 +458,21 @@ function paint(r, c, t, col) {
 }
 
 /**
- * Fold the shape onto itself so it comes out left-right symmetric, about its
- * OWN centre -- it stays exactly where it was drawn, it does not gain a copy on
- * the far side of the grid. Preview and commit both go through here, so what
- * you see while dragging is what lands.
+ * Flip the shape left-right about its OWN centre: it is REPLACED by its mirror
+ * image, not unioned with it, and its bounding box does not move. Flipping a
+ * shape that is already symmetric therefore changes nothing, and flipping twice
+ * returns the original. Preview and commit both go through here, so what you
+ * see while dragging is what lands.
  */
 function mirrorAxis(list) {
   let lo = Infinity, hi = -Infinity;
   for (const p of list) { if (p.c < lo) lo = p.c; if (p.c > hi) hi = p.c; }
-  return lo + hi;                      // mirrored column = axis - c
+  return lo + hi;                      // flipped column = axis - c
 }
 function withMirror(list) {
   if (!mirror || !list.length) return list;
   const axis = mirrorAxis(list);
-  const out = list.slice();
-  const seen = new Set(list.map((p) => kk(p.r, p.c)));
-  for (const p of list) {
-    const m = axis - p.c;
-    if (m === p.c || seen.has(kk(p.r, m))) continue;
-    seen.add(kk(p.r, m));
-    out.push({ r: p.r, c: m, color: p.color });
-  }
-  return out;
+  return list.map((p) => ({ r: p.r, c: axis - p.c, color: p.color }));
 }
 function paintRect(r0, c0, r1, c1, t, col, filled) {
   const [ra, rb] = [Math.min(r0, r1), Math.max(r0, r1)];
