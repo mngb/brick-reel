@@ -455,10 +455,25 @@ const stripCv = $("#strip"), sctx = stripCv.getContext("2d");
 function paint(r, c, t, col) {
   if (r < 0 || c < 0 || r >= PLAY_ROWS || c >= COLS) return;
   cells[r][c] = { t, c: t === "brick" ? col : null };
-  if (mirror) {
-    const m = COLS - 1 - c;
-    if (m !== c) cells[r][m] = { t, c: t === "brick" ? col : null };
+}
+
+/**
+ * Add the mirrored half. Everything that draws -- the live preview and the
+ * commit -- goes through this, so what you see while dragging is exactly what
+ * lands. The grid is 36 wide, so the axis falls between columns 17 and 18 and
+ * there is no single centre column to sit on.
+ */
+function withMirror(list) {
+  if (!mirror) return list;
+  const out = list.slice();
+  const seen = new Set(list.map((p) => kk(p.r, p.c)));
+  for (const p of list) {
+    const m = COLS - 1 - p.c;
+    if (m === p.c || seen.has(kk(p.r, m))) continue;
+    seen.add(kk(p.r, m));
+    out.push({ r: p.r, c: m, color: p.color });
   }
+  return out;
 }
 function paintRect(r0, c0, r1, c1, t, col, filled) {
   const [ra, rb] = [Math.min(r0, r1), Math.max(r0, r1)];
@@ -667,6 +682,16 @@ function drawGrid(preview) {
       gctx.restore();
     }
 
+  if (mirror) {
+    gctx.save();
+    gctx.strokeStyle = "rgba(224,49,87,.55)";
+    gctx.lineWidth = 2; gctx.setLineDash([6, 5]);
+    gctx.beginPath();
+    gctx.moveTo((COLS / 2) * CELL, 0); gctx.lineTo((COLS / 2) * CELL, GRID_H);
+    gctx.stroke();
+    gctx.restore();
+  }
+
   if (preview && preview.length) {
     gctx.save();
     gctx.globalAlpha = .62;
@@ -769,7 +794,7 @@ let ghost = [];      // cells the pending action would paint
 function commit(list, erase) {
   if (!list.length) return;
   pushUndo();
-  for (const p of list) paint(p.r, p.c, erase ? "empty" : tool, p.color || colour);
+  for (const p of withMirror(list)) paint(p.r, p.c, erase ? "empty" : tool, p.color || colour);
   ghost = []; render();
 }
 
@@ -798,12 +823,13 @@ gridCv.addEventListener("pointerdown", (ev) => {
   if (shape === "pencil") {
     pushUndo();
     stroke = { a: p, b: p, erase, painted: true };
-    paint(p.r, p.c, erase ? "empty" : tool, colour);
+    for (const q of withMirror([{ r: p.r, c: p.c, color: null }]))
+      paint(q.r, q.c, erase ? "empty" : tool, colour);
     render();
     return;
   }
   stroke = { a: p, b: p, erase, painted: false };
-  ghost = shapeCells(shape, p, p, p);
+  ghost = withMirror(shapeCells(shape, p, p, p));
   render(ghost);
 });
 
@@ -813,12 +839,12 @@ gridCv.addEventListener("pointermove", (ev) => {
     ? String(p.c).padStart(2, "0") + ", " + String(p.r).padStart(2, "0") : "--, --";
 
   if (curve) {                                       // moving bends the curve
-    ghost = shapeCells("curve", curve.a, curve.b, p);
+    ghost = withMirror(shapeCells("curve", curve.a, curve.b, p));
     render(ghost);
     return;
   }
   if (shape === "stamp" && !stroke) {
-    ghost = inGrid(p) ? stampAt(p.r, p.c) : [];
+    ghost = inGrid(p) ? withMirror(stampAt(p.r, p.c)) : [];
     render(ghost);
     return;
   }
@@ -828,12 +854,12 @@ gridCv.addEventListener("pointermove", (ev) => {
                c: Math.max(0, Math.min(COLS - 1, p.c)) };
   if (shape === "pencil") {
     // fill the gap a fast drag leaves between samples
-    for (const [r, c] of lineCells(stroke.a.r, stroke.a.c, stroke.b.r, stroke.b.c))
-      paint(r, c, stroke.erase ? "empty" : tool, colour);
+    const seg = lineCells(stroke.a.r, stroke.a.c, stroke.b.r, stroke.b.c).map(([r, c]) => ({ r, c }));
+    for (const q of withMirror(seg)) paint(q.r, q.c, stroke.erase ? "empty" : tool, colour);
     stroke.a = stroke.b;
     render();
   } else {
-    ghost = shapeCells(shape, stroke.a, stroke.b, stroke.b);
+    ghost = withMirror(shapeCells(shape, stroke.a, stroke.b, stroke.b));
     render(ghost);
   }
 });
@@ -845,7 +871,7 @@ addEventListener("pointerup", () => {
   if (shape === "curve") {
     // hold the chord and let the next move bend it; a click commits
     curve = { a: st.a, b: st.b, erase: st.erase };
-    ghost = shapeCells("curve", st.a, st.b, st.b);
+    ghost = withMirror(shapeCells("curve", st.a, st.b, st.b));
     $("#stamp-note-live").textContent = "Move to bend the curve, click to place it.";
     render(ghost);
     return;
@@ -960,6 +986,7 @@ $("#mirror").addEventListener("click", (e) => {
   mirror = !mirror;
   e.currentTarget.setAttribute("aria-pressed", String(mirror));
   e.currentTarget.querySelector(".state").textContent = mirror ? "on" : "off";
+  render(ghost);
 });
 
 $("#btn-undo").addEventListener("click", undo);
@@ -1132,7 +1159,8 @@ setStamp(stampText, stampH);
 render();
 window.__editor = {                       // a handle for scripted checks
   set: (r, c, t, col) => { paint(r, c, t, col || colour); render(); },
-  shapeCells, stampAt, rasterStamp, safeColour, classify,
+  shapeCells, stampAt, rasterStamp, safeColour, classify, withMirror,
+  setMirror: (v) => { mirror = v; },
   dataUrl: () => buildPng().toDataURL("image/png"),
   grid: () => cells,
 };
