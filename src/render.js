@@ -350,6 +350,39 @@ function drawFloor(ctx, cfg) {
   ctx.fillRect(field.x, y - 2, field.w, 3);
 }
 
+/** The closing frame: the field dims and WIN comes up, then the file ends. */
+function drawWinCard(ctx, cfg, state) {
+  if (!state.cleared) return;
+  const k = Math.min(1, (state.t - state.clearedAt) / 0.45);
+  if (k <= 0) return;
+  const ease = 1 - Math.pow(1 - k, 3);
+  const { width: W, height: H } = cfg;
+  const s = cfg.scale ?? 1;
+
+  ctx.fillStyle = `rgba(6,8,16,${(0.66 * ease).toFixed(3)})`;
+  ctx.fillRect(0, 0, W, H);
+
+  const cell = Math.max(4, Math.round(30 * s * (0.84 + 0.16 * ease)));
+  const gap = Math.max(2, Math.round(cell * 0.3));
+  const h = 7 * (cell + gap) - gap;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,255,0.9)';
+  ctx.shadowBlur = 48 * s * ease;
+  pixelText(ctx, ['WIN'], { cx: W / 2, y: (H - h) / 2, cell, gap, color: '#FFFFFF', alpha: ease });
+  ctx.restore();
+
+  // a palette rule under the word, drawn in as it settles
+  const rw = W * 0.30 * ease, ry = (H + h) / 2 + Math.round(34 * s);
+  const colors = PALETTES[cfg.palette] ?? PALETTES.sunset;
+  const lg = ctx.createLinearGradient(W / 2 - rw / 2, 0, W / 2 + rw / 2, 0);
+  colors.forEach((c, i) => lg.addColorStop(i / (colors.length - 1), c));
+  ctx.globalAlpha = ease;
+  ctx.fillStyle = lg;
+  ctx.fillRect(W / 2 - rw / 2, ry, rw, Math.max(2, Math.round(4 * s)));
+  ctx.globalAlpha = 1;
+}
+
 function drawVignette(ctx, cfg) {
   const { width: W, height: H } = cfg;
   const rg = ctx.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 0.78);
@@ -393,5 +426,6 @@ export function draw(ctx, state, fx) {
     ctx.restore();
   }
 
+  drawWinCard(ctx, cfg, state);
   drawVignette(ctx, cfg);
 }

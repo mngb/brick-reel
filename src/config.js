@@ -24,7 +24,7 @@ export const defaultConfig = {
   bg: '#080A14',
 
   maxDuration: 600,  // hard cap, seconds (10 min)
-  outro: 1.5,        // seconds of play after the last brick, then the file ends
+  outro: 2.5,        // how long WIN stays up after the last brick, then the file ends
   slowmo: true,      // slow motion as a ball closes in on the final brick
   slowmoFactor: 4,
   slowmoRadius: 430, // px: only slow down once the kill is imminent
