@@ -272,7 +272,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 4</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 5</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -317,6 +317,9 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
           <button data-shape="stamp" aria-pressed="false" title="Text or emoji">
             <svg viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></svg>Stamp</button>
         </div>
+        <button class="toggle" id="select" aria-pressed="false">
+          Select &amp; move <span class="state">off</span>
+        </button>
         <button class="toggle" id="filled" aria-pressed="false">
           Fill box &amp; ellipse <span class="state">outline</span>
         </button>
@@ -357,6 +360,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
       <div class="rulebar">
         <span>cell <b id="coord">--, --</b></span>
         <span>drag to paint &middot; right-click erases &middot; <b>alt</b> picks a colour</span>
+        <span id="sel-info"></span>
         <span id="stamp-note-live" style="color:var(--accent)"></span>
       </div>
     </div>
@@ -681,6 +685,16 @@ function drawGrid(preview) {
       gctx.restore();
     }
 
+  if (sel) {
+    const b = selBounds();
+    gctx.save();
+    gctx.strokeStyle = "rgba(224,49,87,.95)";
+    gctx.lineWidth = 2; gctx.setLineDash([6, 4]);
+    gctx.strokeRect(b.c0 * CELL + 1, b.r0 * CELL + 1,
+                    (b.c1 - b.c0 + 1) * CELL - 2, (b.r1 - b.r0 + 1) * CELL - 2);
+    gctx.restore();
+  }
+
   if (mirror && preview && preview.length) {
     const axis = mirrorAxis(preview);                 // in cells, may be a half
     let top = PLAY_ROWS, bot = 0;
@@ -700,6 +714,11 @@ function drawGrid(preview) {
     gctx.globalAlpha = .62;
     for (const p of preview) {
       if (p.r < 0 || p.c < 0 || p.r >= PLAY_ROWS || p.c >= COLS) continue;
+      if (p.marquee) {
+        gctx.strokeStyle = "rgba(224,49,87,.9)"; gctx.lineWidth = 1;
+        gctx.strokeRect(p.c * CELL + .5, p.r * CELL + .5, CELL - 1, CELL - 1);
+        continue;
+      }
       gctx.fillStyle = p.erase ? "#FFFFFF"
         : (p.color && tool === "brick") ? p.color
         : (tool === "empty" ? "#FFFFFF" : TYPES[tool].fill);
@@ -795,6 +814,55 @@ let curve = null;    // a curve waiting for its bend
 let ghost = [];      // cells the pending action would paint
 let penBase = null;  // grid as it was when a pencil stroke began
 let penPts = [], penSeen = null;
+/* A selection lifts its contents off the grid and floats them: `base` is the
+   grid with the source area cleared, `items` is what was lifted, and dr/dc is
+   how far it has been dragged. `cells` is rebuilt from the two, so what is on
+   screen is always the real grid -- dropping is just forgetting the selection. */
+let sel = null;
+let selectMode = false, marquee = null, selDrag = null;
+
+function selBounds() {
+  return sel && { r0: sel.r0 + sel.dr, c0: sel.c0 + sel.dc, r1: sel.r1 + sel.dr, c1: sel.c1 + sel.dc };
+}
+function inSel(p) {
+  const b = selBounds();
+  return !!b && p.r >= b.r0 && p.r <= b.r1 && p.c >= b.c0 && p.c <= b.c1;
+}
+function applySel() {
+  cells = sel.base.map((row) => row.map((x) => ({ ...x })));
+  for (const it of sel.items) {
+    const r = it.r + sel.dr, c = it.c + sel.dc;
+    if (r < 0 || c < 0 || r >= PLAY_ROWS || c >= COLS) continue;   // dragged off the grid
+    cells[r][c] = { t: it.t, c: it.color };
+  }
+  const n = sel.items.length;
+  $("#sel-info").textContent = n
+    ? `${sel.c1 - sel.c0 + 1} \u00d7 ${sel.r1 - sel.r0 + 1} selected, ${n} cell${n === 1 ? "" : "s"}`
+    : `${sel.c1 - sel.c0 + 1} \u00d7 ${sel.r1 - sel.r0 + 1} selected, empty`;
+  render();
+}
+function liftSelection(a, b) {
+  const r0 = Math.min(a.r, b.r), r1 = Math.max(a.r, b.r);
+  const c0 = Math.min(a.c, b.c), c1 = Math.max(a.c, b.c);
+  pushUndo();
+  const base = snap();
+  const items = [];
+  for (let r = r0; r <= r1; r++)
+    for (let c = c0; c <= c1; c++) {
+      const cell = base[r][c];
+      if (cell.t === "empty") continue;
+      items.push({ r, c, t: cell.t, color: cell.c });
+      base[r][c] = { t: "empty", c: null };        // the source area comes away with it
+    }
+  sel = { r0, c0, r1, c1, base, items, dr: 0, dc: 0 };
+  applySel();
+}
+function dropSelection() {
+  if (!sel) return;
+  sel = null;                                      // `cells` already holds the result
+  $("#sel-info").textContent = "";
+  render();
+}
 
 /** Add a segment to the live pencil stroke and repaint it whole. */
 function extendPen(a, b) {
@@ -829,6 +897,12 @@ gridCv.addEventListener("pointerdown", (ev) => {
     if (cell.t === "brick" && cell.c) setColour(cell.c);
     return;
   }
+  if (selectMode) {
+    if (sel && inSel(p)) selDrag = { from: p, dr0: sel.dr, dc0: sel.dc };
+    else { dropSelection(); marquee = { a: p, b: p }; ghost = []; render(); }
+    return;
+  }
+
   const erase = ev.button === 2;
 
   if (curve) {                                       // second click sets the bend
@@ -858,6 +932,25 @@ gridCv.addEventListener("pointermove", (ev) => {
   $("#coord").textContent = inGrid(p)
     ? String(p.c).padStart(2, "0") + ", " + String(p.r).padStart(2, "0") : "--, --";
 
+  if (selectMode) {
+    gridCv.style.cursor = inSel(p) ? "move" : "crosshair";
+    if (selDrag) {
+      sel.dr = selDrag.dr0 + (p.r - selDrag.from.r);
+      sel.dc = selDrag.dc0 + (p.c - selDrag.from.c);
+      applySel();
+    } else if (marquee) {
+      marquee.b = p;
+      const r0 = Math.min(marquee.a.r, p.r), r1 = Math.max(marquee.a.r, p.r);
+      const c0 = Math.min(marquee.a.c, p.c), c1 = Math.max(marquee.a.c, p.c);
+      ghost = [];
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++)
+          if (r === r0 || r === r1 || c === c0 || c === c1) ghost.push({ r, c, color: null, marquee: true });
+      render(ghost);
+    }
+    return;
+  }
+
   if (curve) {                                       // moving bends the curve
     ghost = withMirror(shapeCells("curve", curve.a, curve.b, p));
     render(ghost);
@@ -882,6 +975,17 @@ gridCv.addEventListener("pointermove", (ev) => {
 });
 
 addEventListener("pointerup", () => {
+  if (selectMode) {
+    if (marquee) {
+      const b = { r: Math.max(0, Math.min(PLAY_ROWS - 1, marquee.b.r)),
+                  c: Math.max(0, Math.min(COLS - 1, marquee.b.c)) };
+      ghost = [];
+      liftSelection(marquee.a, b);
+      marquee = null;
+    }
+    selDrag = null;
+    return;
+  }
   if (!stroke) return;
   const st = stroke; stroke = null;
   if (shape === "pencil") { penBase = null; penPts = []; penSeen = null; ghost = []; render(); return; }
@@ -965,6 +1069,7 @@ for (const e of EMOJI) {
 
 function selectShape(name) {
   shape = name;
+  dropSelection();
   curve = null; ghost = [];
   $("#stamp-note-live").textContent = "";
   $("#shapes").querySelectorAll("button").forEach((x) =>
@@ -975,6 +1080,16 @@ function selectShape(name) {
 }
 $("#shapes").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (b) selectShape(b.dataset.shape);
+});
+
+$("#select").addEventListener("click", (e) => {
+  selectMode = !selectMode;
+  if (!selectMode) dropSelection();
+  marquee = null; selDrag = null; ghost = [];
+  e.currentTarget.setAttribute("aria-pressed", String(selectMode));
+  e.currentTarget.querySelector(".state").textContent = selectMode ? "on" : "off";
+  gridCv.style.cursor = "crosshair";
+  render();
 });
 
 $("#filled").addEventListener("click", (e) => {
@@ -1008,9 +1123,9 @@ $("#mirror").addEventListener("click", (e) => {
 
 $("#btn-undo").addEventListener("click", undo);
 $("#btn-redo").addEventListener("click", redo);
-function undo() { if (!undoStack.length) return; redoStack.push(snap()); cells = undoStack.pop(); render(); }
-function redo() { if (!redoStack.length) return; undoStack.push(snap()); cells = redoStack.pop(); render(); }
-$("#btn-clear").addEventListener("click", () => { pushUndo(); cells = blank(); render(); });
+function undo() { dropSelection(); if (!undoStack.length) return; redoStack.push(snap()); cells = undoStack.pop(); render(); }
+function redo() { dropSelection(); if (!redoStack.length) return; undoStack.push(snap()); cells = redoStack.pop(); render(); }
+$("#btn-clear").addEventListener("click", () => { dropSelection(); pushUndo(); cells = blank(); render(); });
 
 addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea")) return;
@@ -1107,6 +1222,7 @@ function buildPng() {
 }
 const dlg = $("#dlg");
 function exportPng() {
+  dropSelection();
   $("#out").src = buildPng().toDataURL("image/png");
   dlg.showModal();
 }
