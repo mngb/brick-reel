@@ -1,7 +1,7 @@
 import { Canvas } from 'skia-canvas';
 import { writeFileSync } from 'node:fs';
 import { playRows, templateRows } from './level.js';
-import { KEYS } from './imagemap.js';
+import { MARK_INSET, MARK_SIZE } from './imagemap.js';
 import { pixelText } from './render.js';
 import { PALETTES } from './config.js';
 
@@ -29,10 +29,14 @@ export function writeTemplate(cfg, out, { cellPx = 20, fill = null } = {}) {
       for (let c = 0; c < cfg.cols; c++) {
         const cell = fill[r]?.[c];
         if (!cell || cell.kind === 'empty') continue;
-        const key = cell.axis && KEYS.find((k) => k.kind === cell.kind && k.axis === cell.axis);
-        ctx.fillStyle = key ? `rgb(${key.rgb.join(',')})`
-                            : cell.kind === 'obstacle' ? '#000000' : cell.color;
+        // Body carries kind and colour; the corner mark carries direction, so a
+        // moving piece keeps the colour it was painted.
+        ctx.fillStyle = cell.kind === 'obstacle' ? '#000000' : cell.color;
         ctx.fillRect(c * cellPx, r * cellPx, cellPx, cellPx);
+        if (cell.axis) {
+          ctx.fillStyle = cell.axis === 'h' ? '#FF0000' : '#00FF00';
+          ctx.fillRect(c * cellPx, r * cellPx, cellPx * MARK_SIZE, cellPx * MARK_SIZE);
+        }
       }
     }
   }
@@ -69,10 +73,10 @@ function drawKeyStrip(ctx, cfg, W, top, h) {
   const pairs = [
     ['#FFFFFF', 'EMPTY', 'WHITE'],
     ['#000000', 'WALL', 'BLACK'],
-    ['#0000FF', 'WALL LR', '0000FF'],
-    ['#FF00FF', 'WALL UD', 'FF00FF'],
-    ['#FF0000', 'BRICK LR', 'FF0000'],
-    ['#00FF00', 'BRICK UD', '00FF00'],
+    ['#FF4E6B', 'BRICK', 'ANY COLOUR'],
+    ['#FF0000', 'CORNER MARK', 'MOVES LEFT-RIGHT'],
+    ['#00FF00', 'CORNER MARK', 'MOVES UP-DOWN'],
+    ['#FFFFFF', 'NO MARK', 'STAYS PUT'],
   ];
 
   ctx.fillStyle = '#0E1222';
@@ -104,8 +108,8 @@ function drawKeyStrip(ctx, cfg, W, top, h) {
 
   // The catch-all gets its own full-width line; its note is too long for a column.
   const yLast = y0 + 3 * rowH + 6;
-  entry('#FF4E6B', 'BRICK', '', colX[0], yLast);
-  left('ANY OTHER COLOUR - AS PAINTED', colX[0] + sw + 8 + 130, yLast + 3, 2, 1, '#9FB0D8', 0.85);
+  left('A MARK IN A CELL CORNER SETS DIRECTION - THE CELL KEEPS ITS COLOUR',
+       colX[0], yLast + 3, 2, 1, '#9FB0D8', 0.85);
 
   left('KEY STRIP - NOT PART OF THE MAP', 14, top + h - 28, 2, 1, '#7C8BB8', 0.9);
 }

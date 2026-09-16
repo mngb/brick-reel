@@ -2,11 +2,20 @@ import { loadImage, Canvas } from 'skia-canvas';
 import { playRows, templateRows } from './level.js';
 
 /**
- * Four pure key colours carry the type; every other colour is still a static
- * brick painted in that colour. Pure primaries are used because nothing in a
- * normal palette lands near them -- the closest palette entry is 132 away and
- * the match radius is 50, so a hand-picked brick colour can never be mistaken
- * for a key.
+ * Direction and colour are carried separately, so a moving piece keeps the
+ * colour it was painted:
+ *
+ *   - the body of the cell gives the kind and the colour, exactly as a static
+ *     cell does;
+ *   - a small mark in the cell's TOP-LEFT corner gives the direction -- pure
+ *     red for left-right, pure green for up-down. No mark means static.
+ *
+ * Filling a whole cell with a key colour still works (that was the original
+ * encoding, and it is the easiest thing to hand-paint): the corner then reads
+ * the same key, and the piece moves but has no colour of its own.
+ *
+ * Pure primaries are used because nothing in a normal palette lands near them --
+ * the closest palette entry is 132 away and the match radius is 50.
  */
 export const KEYS = [
   { rgb: [0x00, 0x00, 0xFF], kind: 'obstacle', axis: 'h', name: 'pure blue    #0000FF' },
@@ -15,6 +24,21 @@ export const KEYS = [
   { rgb: [0x00, 0xFF, 0x00], kind: 'brick',    axis: 'v', name: 'pure green   #00FF00' },
 ];
 const KEY_RADIUS = 50;
+
+/** Corner marks. Same two primaries, so there is one thing to remember. */
+const MARKS = [
+  { rgb: [0xFF, 0x00, 0x00], axis: 'h' },
+  { rgb: [0x00, 0xFF, 0x00], axis: 'v' },
+];
+export const MARK_INSET = 0.12;   // where in the cell the mark is sampled
+export const MARK_SIZE = 0.3;     // and how much of the cell it covers
+
+export function markAxis(r, g, b, a) {
+  if (a < 128) return null;
+  for (const m of MARKS)
+    if (Math.hypot(r - m.rgb[0], g - m.rgb[1], b - m.rgb[2]) < KEY_RADIUS) return m.axis;
+  return null;
+}
 
 export function classify(r, g, b, a) {
   if (a < 128) return { kind: 'empty' };
@@ -74,7 +98,18 @@ export async function loadMapGrid(cfg, path) {
       }
       let win = null;
       for (const v of votes.values()) if (!win || v.n > win.n) win = v;
-      row.push(win.cell);
+      const cell = win.cell;
+
+      // The corner mark can add a direction to a cell that has its own colour.
+      // A cell already typed by a whole-cell key colour keeps that reading.
+      if (cell.kind !== 'empty' && !cell.axis && cw >= 8 && ch >= 8) {
+        const mx = Math.min(img.width - 1, Math.floor((c + MARK_INSET) * cw));
+        const my = Math.min(img.height - 1, Math.floor((r + MARK_INSET) * ch));
+        const i = (my * img.width + mx) * 4;
+        const axis = markAxis(data[i], data[i + 1], data[i + 2], data[i + 3]);
+        if (axis) cell.axis = axis;
+      }
+      row.push(cell);
     }
     grid.push(row);
   }

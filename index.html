@@ -272,7 +272,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 5</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 6</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -388,14 +388,20 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
    change the other, or exported files stop loading. */
 const COLS = 36, PLAY_ROWS = 40, DOC_ROWS = 10, CELL = 20;
 const GRID_W = COLS * CELL, GRID_H = PLAY_ROWS * CELL, STRIP_H = DOC_ROWS * CELL;
+/* Direction lives in a mark in the cell's top-left corner, so the body of the
+   cell is free to carry the colour it was painted. Must match src/imagemap.js. */
+const MARK_INSET = 0.12, MARK_SIZE = 0.3;
+const MARK_COLOUR = { h: "#FF0000", v: "#00FF00" };
+const isBrick = (t) => t === "brick" || t === "brickLR" || t === "brickUD";
+const axisOf = (t) => (t === "brickLR" || t === "wallLR" ? "h" : t === "brickUD" || t === "wallUD" ? "v" : null);
 
 const TYPES = {
   empty:   { nm: "Empty",           hex: "",        fill: "#FFFFFF", arrow: "" },
   wall:    { nm: "Wall",            hex: "#000000", fill: "#000000", arrow: "" },
-  wallLR:  { nm: "Wall — moves LR", hex: "#0000FF", fill: "#0000FF", arrow: "↔" },
-  wallUD:  { nm: "Wall — moves UD", hex: "#FF00FF", fill: "#FF00FF", arrow: "↕" },
-  brickLR: { nm: "Brick — moves LR",hex: "#FF0000", fill: "#FF0000", arrow: "↔" },
-  brickUD: { nm: "Brick — moves UD",hex: "#00FF00", fill: "#00FF00", arrow: "↕" },
+  wallLR:  { nm: "Wall — moves LR", hex: "black + ↔", fill: "#000000", arrow: "↔" },
+  wallUD:  { nm: "Wall — moves UD", hex: "black + ↕", fill: "#000000", arrow: "↕" },
+  brickLR: { nm: "Brick — moves LR",hex: "any + ↔",   fill: "#FF4E6B", arrow: "↔" },
+  brickUD: { nm: "Brick — moves UD",hex: "any + ↕",   fill: "#FF4E6B", arrow: "↕" },
   brick:   { nm: "Brick",           hex: "any",     fill: "#FF4E6B", arrow: "" },
 };
 const ORDER = ["empty", "wall", "wallLR", "wallUD", "brickLR", "brickUD", "brick"];
@@ -458,7 +464,7 @@ const stripCv = $("#strip"), sctx = stripCv.getContext("2d");
 /* ---------- painting ---------- */
 function paint(r, c, t, col) {
   if (r < 0 || c < 0 || r >= PLAY_ROWS || c >= COLS) return;
-  cells[r][c] = { t, c: t === "brick" ? col : null };
+  cells[r][c] = { t, c: isBrick(t) ? col : null };
 }
 
 /**
@@ -640,14 +646,19 @@ function stampAt(r, c) {
   const r0 = r - Math.floor(s.h / 2), c0 = c - Math.floor(s.w / 2);
   return s.cells.map((p) => ({
     r: r0 + p.dr, c: c0 + p.dc,
-    color: tool === "brick" ? p.color : null,     // a typed tool wins over glyph colour
+    color: isBrick(tool) ? p.color : null,        // walls have no colour of their own
   }));
+}
+
+function drawMark(ctx, r, c, axis) {
+  ctx.fillStyle = MARK_COLOUR[axis];
+  ctx.fillRect(c * CELL, r * CELL, CELL * MARK_SIZE, CELL * MARK_SIZE);
 }
 
 /* ---------- drawing the editor grid ---------- */
 function cellFill(cell) {
   if (cell.t === "empty") return null;
-  return cell.t === "brick" ? cell.c : TYPES[cell.t].fill;
+  return isBrick(cell.t) ? (cell.c || TYPES.brick.fill) : "#000000";
 }
 function drawGrid(preview) {
   gctx.fillStyle = "#FFFFFF";
@@ -675,8 +686,10 @@ function drawGrid(preview) {
      key colour, but on screen they make a map readable at a glance */
   for (let r = 0; r < PLAY_ROWS; r++)
     for (let c = 0; c < COLS; c++) {
+      const axis = axisOf(cells[r][c].t);
+      if (!axis) continue;
+      drawMark(gctx, r, c, axis);
       const a = TYPES[cells[r][c].t].arrow;
-      if (!a) continue;
       gctx.save();
       gctx.fillStyle = "rgba(255,255,255,.95)";
       gctx.font = "600 12px " + getComputedStyle(document.body).fontFamily;
@@ -720,8 +733,8 @@ function drawGrid(preview) {
         continue;
       }
       gctx.fillStyle = p.erase ? "#FFFFFF"
-        : (p.color && tool === "brick") ? p.color
-        : (tool === "empty" ? "#FFFFFF" : TYPES[tool].fill);
+        : (p.color && isBrick(tool)) ? p.color
+        : (tool === "empty" ? "#FFFFFF" : isBrick(tool) ? colour : "#000000");
       gctx.fillRect(p.c * CELL, p.r * CELL, CELL, CELL);
       gctx.strokeStyle = "rgba(224,49,87,.85)"; gctx.lineWidth = 1;
       gctx.strokeRect(p.c * CELL + .5, p.r * CELL + .5, CELL - 1, CELL - 1);
@@ -734,8 +747,10 @@ function drawGrid(preview) {
 function drawStrip(ctx, W, top, h) {
   const pairs = [
     ["#FFFFFF", "EMPTY", "WHITE"], ["#000000", "WALL", "BLACK"],
-    ["#0000FF", "WALL LR", "0000FF"], ["#FF00FF", "WALL UD", "FF00FF"],
-    ["#FF0000", "BRICK LR", "FF0000"], ["#00FF00", "BRICK UD", "00FF00"],
+    ["#FF4E6B", "BRICK", "ANY COLOUR"],
+    ["#FF0000", "CORNER MARK", "MOVES LEFT-RIGHT"],
+    ["#00FF00", "CORNER MARK", "MOVES UP-DOWN"],
+    ["#FFFFFF", "NO MARK", "STAYS PUT"],
   ];
   ctx.fillStyle = "#0E1222"; ctx.fillRect(0, top, W, h);
   ctx.fillStyle = "#FF4E6B"; ctx.fillRect(0, top, W, 3);
@@ -751,8 +766,8 @@ function drawStrip(ctx, W, top, h) {
   };
   pairs.forEach(([hex, l, n], i) => entry(hex, l, n, colX[i < 3 ? 0 : 1], y0 + (i % 3) * rowH));
   const yLast = y0 + 3 * rowH + 6;
-  entry("#FF4E6B", "BRICK", "", colX[0], yLast);
-  pixText(ctx, "ANY OTHER COLOUR - AS PAINTED", colX[0] + sw + 8 + 130, yLast + 3, 2, 1, "#9FB0D8", .85);
+  pixText(ctx, "A MARK IN A CELL CORNER SETS DIRECTION - THE CELL KEEPS ITS COLOUR",
+          colX[0], yLast + 3, 2, 1, "#9FB0D8", .85);
   pixText(ctx, "KEY STRIP - NOT PART OF THE MAP", 14, top + h - 28, 2, 1, "#7C8BB8", .9);
 }
 
@@ -1033,9 +1048,9 @@ function selectTool(key) {
   tool = key;
   toolsEl.querySelectorAll(".tool").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.tool === key)));
-  $("#colour-note").textContent = key === "brick"
-    ? "Painted colour is kept as the brick colour."
-    : "This type has a fixed key colour.";
+  $("#colour-note").textContent = isBrick(key)
+    ? "Painted colour is kept, moving or not."
+    : "Walls are always drawn as steel; colour does not apply.";
 }
 
 const swEl = $("#swatches");
@@ -1050,8 +1065,10 @@ function setColour(hex) {
   colour = hex.toUpperCase();
   $("#colour").value = colour;
   $("#colour-hex").textContent = colour;
-  TYPES.brick.fill = colour;
-  toolsEl.querySelector('[data-tool="brick"] .chip').style.background = colour;
+  for (const k of ["brick", "brickLR", "brickUD"]) {
+    TYPES[k].fill = colour;
+    toolsEl.querySelector(`[data-tool="${k}"] .chip`).style.background = colour;
+  }
   swEl.querySelectorAll("button").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.title.toUpperCase() === colour)));
 }
@@ -1175,7 +1192,17 @@ function importImage(img) {
       }
       let win = null;
       for (const v of votes.values()) if (!win || v.n > win.n) win = v;
-      cells[r][c] = win.cell;
+      const cell = win.cell;
+      // A corner mark adds a direction to a cell that keeps its own colour.
+      if (cell.t !== "empty" && !axisOf(cell.t) && cw >= 8 && ch >= 8) {
+        const mx = Math.min(img.width - 1, Math.floor((c + MARK_INSET) * cw));
+        const my = Math.min(img.height - 1, Math.floor((r + MARK_INSET) * ch));
+        const i = (my * img.width + mx) * 4;
+        const axis = markAxisOf(data[i], data[i + 1], data[i + 2], data[i + 3]);
+        if (axis) cell.t = cell.t === "wall" ? (axis === "h" ? "wallLR" : "wallUD")
+                                            : (axis === "h" ? "brickLR" : "brickUD");
+      }
+      cells[r][c] = cell;
     }
   render();
 }
@@ -1183,6 +1210,12 @@ const KEYMAP = [
   { rgb: [0,0,255],   t: "wallLR" }, { rgb: [255,0,255], t: "wallUD" },
   { rgb: [255,0,0],   t: "brickLR" }, { rgb: [0,255,0],  t: "brickUD" },
 ];
+function markAxisOf(r, g, b, a) {
+  if (a < 128) return null;
+  if (Math.hypot(r - 255, g, b) < 50) return "h";
+  if (Math.hypot(r, g - 255, b) < 50) return "v";
+  return null;
+}
 function classify(r, g, b, a) {
   if (a < 128) return { t: "empty", c: null };
   for (const k of KEYMAP)
@@ -1207,6 +1240,8 @@ function buildPng() {
       const f = cellFill(cells[r][c]);
       if (!f) continue;
       cx.fillStyle = f; cx.fillRect(c * CELL, r * CELL, CELL, CELL);
+      const axis = axisOf(cells[r][c].t);
+      if (axis) drawMark(cx, r, c, axis);
     }
   cx.lineWidth = 1;
   for (let c = 0; c <= COLS; c++) {
