@@ -1,0 +1,16 @@
+{
+  "name": "brick-reel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline deterministic breakout renderer -> mp4 for social video",
+  "scripts": {
+    "render": "node src/main.js"
+  },
+  "dependencies": {
+    "skia-canvas": "^3.0.8"
+  },
+  "allowScripts": {
+    "skia-canvas@3.0.8": true
+  }
+}

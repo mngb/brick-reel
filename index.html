@@ -1,0 +1,1139 @@
+<title>Brick Reel Map Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root {
+  --paper: #FFFFFF;
+  --ground: #E7EBF2;
+  --panel: #F4F6FA;
+  --panel-2: #FFFFFF;
+  --ink: #141A2B;
+  --ink-2: #4A5468;
+  --ink-3: #78839A;
+  --rule: #D3DAE6;
+  --rule-2: #C2CADA;
+  --accent: #E03157;
+  --accent-ink: #FFFFFF;
+  --shadow: 0 1px 2px rgba(20,26,43,.06), 0 12px 32px rgba(20,26,43,.10);
+  --ok: #1F9D6B;
+  --warn: #C2721A;
+
+  --ui: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --ground: #0E1220;
+    --panel: #171D2E;
+    --panel-2: #1D2436;
+    --ink: #EEF1F8;
+    --ink-2: #AEB8CC;
+    --ink-3: #7A8499;
+    --rule: #2A3348;
+    --rule-2: #3A455E;
+    --accent: #FF4E6B;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.45);
+    --ok: #4ED6A0;
+    --warn: #E0A253;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0E1220;
+  --panel: #171D2E;
+  --panel-2: #1D2436;
+  --ink: #EEF1F8;
+  --ink-2: #AEB8CC;
+  --ink-3: #7A8499;
+  --rule: #2A3348;
+  --rule-2: #3A455E;
+  --accent: #FF4E6B;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.45);
+  --ok: #4ED6A0;
+  --warn: #E0A253;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+/* ---------- shell ---------- */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+header {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+}
+.wordmark { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.wordmark h1 {
+  margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.01em;
+}
+.wordmark .spec {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  letter-spacing: .02em;
+}
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 13px; border: 1px solid var(--rule-2); border-radius: 6px;
+  background: var(--panel-2); cursor: pointer;
+  font-size: 13px; font-weight: 600; letter-spacing: -.005em;
+  transition: border-color .12s, background .12s, transform .06s;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn .k {
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+  border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px;
+}
+.btn.primary .k { color: rgba(255,255,255,.75); border-color: rgba(255,255,255,.35); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ---------- body ---------- */
+.work { display: flex; gap: 0; flex: 1; align-items: stretch; }
+
+aside {
+  width: 278px; flex: none;
+  border-right: 1px solid var(--rule);
+  background: var(--panel);
+  padding: 18px 16px 24px;
+  display: flex; flex-direction: column; gap: 22px;
+  overflow-y: auto;
+}
+.group { display: flex; flex-direction: column; gap: 9px; }
+.group > h2 {
+  margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .10em; text-transform: uppercase; color: var(--ink-3);
+}
+
+/* tool rows: swatch + name + hex, so the key travels with the tool */
+.tools { display: flex; flex-direction: column; gap: 3px; }
+.tool {
+  display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px;
+  padding: 7px 9px; border: 1px solid transparent; border-radius: 6px;
+  background: none; cursor: pointer; text-align: left; width: 100%;
+}
+.tool:hover { background: var(--panel-2); }
+.tool[aria-pressed="true"] {
+  background: var(--panel-2); border-color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tool .chip {
+  width: 22px; height: 22px; border-radius: 4px;
+  border: 1px solid var(--rule-2);
+  position: relative; overflow: hidden;
+}
+.tool .chip[data-arrow]::after {
+  content: attr(data-arrow);
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,.95);
+  text-shadow: 0 0 2px rgba(0,0,0,.6);
+}
+.tool .nm { font-size: 13px; font-weight: 600; }
+.tool .hx { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+
+.swatches { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.swatches button {
+  aspect-ratio: 1; border-radius: 4px; border: 1px solid var(--rule-2);
+  cursor: pointer; padding: 0;
+}
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.picker { display: flex; align-items: center; gap: 9px; }
+.picker input[type="color"] {
+  width: 40px; height: 32px; padding: 0; border: 1px solid var(--rule-2);
+  border-radius: 5px; background: none; cursor: pointer;
+}
+.picker code { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+
+.seg { display: flex; border: 1px solid var(--rule-2); border-radius: 6px; overflow: hidden; }
+.seg button {
+  flex: 1; padding: 7px 4px; border: 0; background: var(--panel-2); cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  border-right: 1px solid var(--rule);
+}
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.shapes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.shapes button {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 2px 7px; border: 1px solid var(--rule-2); border-radius: 6px;
+  background: var(--panel-2); cursor: pointer; font-size: 11px; font-weight: 600;
+}
+.shapes button svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.shapes button[aria-pressed="true"] {
+  border-color: var(--accent); color: var(--accent); background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.stamp { display: flex; flex-direction: column; gap: 9px; }
+.stamp input[type="text"] {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--rule-2); border-radius: 6px;
+  background: var(--panel-2); font-size: 15px;
+}
+.stamp .sizerow { display: flex; align-items: center; gap: 10px; }
+.stamp input[type="range"] { flex: 1; accent-color: var(--accent); }
+.stamp .sizerow code { font-family: var(--mono); font-size: 11px; color: var(--ink-3); min-width: 54px; }
+.quick { display: flex; flex-wrap: wrap; gap: 4px; }
+.quick button {
+  padding: 3px 7px; border: 1px solid var(--rule-2); border-radius: 5px;
+  background: var(--panel-2); cursor: pointer; font-size: 15px; line-height: 1.2;
+}
+
+.toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--rule-2); border-radius: 6px;
+  background: var(--panel-2); cursor: pointer; width: 100%;
+  font-size: 13px; font-weight: 600;
+}
+.toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.toggle .state { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.toggle[aria-pressed="true"] .state { color: var(--accent); }
+
+/* live read-out of what the simulator will see */
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; }
+.stats dt { font-size: 12px; color: var(--ink-2); }
+.stats dd {
+  margin: 0; font-family: var(--mono); font-size: 12px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.note {
+  font-size: 12px; line-height: 1.45; color: var(--ink-2);
+  border-left: 2px solid var(--rule-2); padding-left: 10px;
+}
+.note.bad { border-color: var(--warn); color: var(--warn); }
+
+/* ---------- stage ---------- */
+.stage {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 26px 20px; gap: 14px; min-width: 0; overflow: auto;
+}
+.sheet {
+  position: relative; box-shadow: var(--shadow); border-radius: 2px;
+  background: #fff; line-height: 0;
+}
+#grid { display: block; touch-action: none; cursor: crosshair; max-width: 100%; height: auto; }
+#strip { display: block; max-width: 100%; height: auto; }
+.rulebar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+}
+.rulebar b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- export dialog ---------- */
+dialog {
+  border: 1px solid var(--rule-2); border-radius: 10px; padding: 0;
+  background: var(--panel); color: var(--ink);
+  max-width: min(94vw, 560px); box-shadow: var(--shadow);
+}
+dialog::backdrop { background: rgba(8,10,18,.62); }
+.dlg { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dlg h2 { margin: 0; font-size: 16px; }
+.dlg p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.dlg img {
+  width: 100%; max-height: 42vh; object-fit: contain;
+  border: 1px solid var(--rule); border-radius: 4px; background: #fff;
+}
+.cmd {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel-2); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 9px 11px; font-family: var(--mono); font-size: 12px;
+  overflow-x: auto; white-space: nowrap;
+}
+.cmd span { flex: 1; }
+.dlg .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 820px) {
+  .work { flex-direction: column; }
+  aside { width: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+
+<div class="app">
+  <header>
+    <div class="wordmark">
+      <h1>Map Editor</h1>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btn-import">Import PNG</button>
+      <input type="file" id="file" accept="image/png,image/*" hidden>
+      <button class="btn" id="btn-undo">Undo <span class="k">⌘Z</span></button>
+      <button class="btn" id="btn-redo">Redo</button>
+      <button class="btn" id="btn-clear">Clear</button>
+      <button class="btn primary" id="btn-export">Export PNG <span class="k">⌘E</span></button>
+    </div>
+  </header>
+
+  <div class="work">
+    <aside>
+      <div class="group">
+        <h2>Cell type</h2>
+        <div class="tools" id="tools"></div>
+      </div>
+
+      <div class="group">
+        <h2>Static brick colour</h2>
+        <div class="swatches" id="swatches"></div>
+        <div class="picker">
+          <input type="color" id="colour" value="#FF4E6B" aria-label="Static brick colour">
+          <code id="colour-hex">#FF4E6B</code>
+        </div>
+        <p class="note" id="colour-note">Painted colour is kept as the brick colour.</p>
+      </div>
+
+      <div class="group">
+        <h2>Shape</h2>
+        <div class="shapes" id="shapes">
+          <button data-shape="pencil" aria-pressed="true" title="Pencil (1)">
+            <svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>Pencil</button>
+          <button data-shape="line" aria-pressed="false" title="Line">
+            <svg viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg>Line</button>
+          <button data-shape="curve" aria-pressed="false" title="Curve">
+            <svg viewBox="0 0 24 24"><path d="M4 19C4 9 14 5 20 5"/></svg>Curve</button>
+          <button data-shape="rect" aria-pressed="false" title="Rectangle">
+            <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>Box</button>
+          <button data-shape="ellipse" aria-pressed="false" title="Ellipse">
+            <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="6.5"/></svg>Ellipse</button>
+          <button data-shape="stamp" aria-pressed="false" title="Text or emoji">
+            <svg viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></svg>Stamp</button>
+        </div>
+        <button class="toggle" id="filled" aria-pressed="false">
+          Fill box &amp; ellipse <span class="state">outline</span>
+        </button>
+        <button class="toggle" id="mirror" aria-pressed="false">
+          Mirror left / right <span class="state">off</span>
+        </button>
+      </div>
+
+      <div class="group stamp" id="stamp-group" hidden>
+        <h2>Stamp</h2>
+        <input type="text" id="stamp-text" value="GO" maxlength="24"
+               aria-label="Text or emoji to stamp" placeholder="Text or emoji">
+        <div class="quick" id="stamp-quick"></div>
+        <div class="sizerow">
+          <input type="range" id="stamp-size" min="4" max="26" value="9" aria-label="Stamp height in cells">
+          <code id="stamp-dims">9 cells</code>
+        </div>
+        <p class="note" id="stamp-note">Move over the grid to place it, click to stamp.</p>
+      </div>
+
+      <div class="group">
+        <h2>What the simulator sees</h2>
+        <dl class="stats">
+          <dt>Bricks</dt><dd id="s-bricks">0</dd>
+          <dt>Walls</dt><dd id="s-walls">0</dd>
+          <dt>Moving groups</dt><dd id="s-groups">0</dd>
+          <dt>Largest group</dt><dd id="s-largest">0</dd>
+        </dl>
+        <p class="note" id="validity">Paint at least one brick — a map with no bricks cannot be cleared.</p>
+      </div>
+    </aside>
+
+    <div class="stage">
+      <div class="sheet">
+        <canvas id="grid" width="720" height="800" aria-label="Map grid, 36 by 40 cells"></canvas>
+        <canvas id="strip" width="720" height="200" aria-hidden="true"></canvas>
+      </div>
+      <div class="rulebar">
+        <span>cell <b id="coord">--, --</b></span>
+        <span>drag to paint &middot; right-click erases &middot; <b>alt</b> picks a colour</span>
+        <span id="stamp-note-live" style="color:var(--accent)"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <div class="dlg">
+    <h2>Map ready</h2>
+    <img id="out" alt="Exported map">
+    <p id="save-hint"><strong>Right-click the image &rarr; Save image as&hellip;</strong> always works. Save PNG hands you the file directly.</p>
+    <div class="cmd"><span id="cmd">node src/main.js --map my-map.png --scan 20 --top 5</span>
+      <button class="btn" id="btn-copy-cmd">Copy</button></div>
+    <div class="row">
+      <button class="btn primary" id="btn-download">Save PNG</button>
+      <button class="btn" id="btn-copy-img">Copy image</button>
+      <button class="btn" id="btn-close">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* Constants below mirror src/config.js + src/template.js exactly. Change one,
+   change the other, or exported files stop loading. */
+const COLS = 36, PLAY_ROWS = 40, DOC_ROWS = 10, CELL = 20;
+const GRID_W = COLS * CELL, GRID_H = PLAY_ROWS * CELL, STRIP_H = DOC_ROWS * CELL;
+
+const TYPES = {
+  empty:   { nm: "Empty",           hex: "",        fill: "#FFFFFF", arrow: "" },
+  wall:    { nm: "Wall",            hex: "#000000", fill: "#000000", arrow: "" },
+  wallLR:  { nm: "Wall — moves LR", hex: "#0000FF", fill: "#0000FF", arrow: "↔" },
+  wallUD:  { nm: "Wall — moves UD", hex: "#FF00FF", fill: "#FF00FF", arrow: "↕" },
+  brickLR: { nm: "Brick — moves LR",hex: "#FF0000", fill: "#FF0000", arrow: "↔" },
+  brickUD: { nm: "Brick — moves UD",hex: "#00FF00", fill: "#00FF00", arrow: "↕" },
+  brick:   { nm: "Brick",           hex: "any",     fill: "#FF4E6B", arrow: "" },
+};
+const ORDER = ["empty", "wall", "wallLR", "wallUD", "brickLR", "brickUD", "brick"];
+const SAFE = ["#FF4E6B","#FF7A4D","#FFB13D","#FFE05C","#8BE07A","#48C9F0","#8B7BF5",
+              "#7CE0FF","#5CC2F5","#4AA4EA","#5B8BE0","#7B78DE","#9A6CD6","#B96BCB"];
+
+/* Same 5x7 font the renderer and the CLI template use, so an exported file's key
+   strip is identical to one written by --template. */
+const FONT = {
+  A:[0x0E,0x11,0x11,0x1F,0x11,0x11,0x11], B:[0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E],
+  C:[0x0E,0x11,0x10,0x10,0x10,0x11,0x0E], D:[0x1E,0x11,0x11,0x11,0x11,0x11,0x1E],
+  E:[0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F], F:[0x1F,0x10,0x10,0x1E,0x10,0x10,0x10],
+  G:[0x0E,0x11,0x10,0x17,0x11,0x11,0x0F], H:[0x11,0x11,0x11,0x1F,0x11,0x11,0x11],
+  I:[0x1F,0x04,0x04,0x04,0x04,0x04,0x1F], J:[0x07,0x02,0x02,0x02,0x02,0x12,0x0C],
+  K:[0x11,0x12,0x14,0x18,0x14,0x12,0x11], L:[0x10,0x10,0x10,0x10,0x10,0x10,0x1F],
+  M:[0x11,0x1B,0x15,0x15,0x11,0x11,0x11], N:[0x11,0x11,0x19,0x15,0x13,0x11,0x11],
+  O:[0x0E,0x11,0x11,0x11,0x11,0x11,0x0E], P:[0x1E,0x11,0x11,0x1E,0x10,0x10,0x10],
+  Q:[0x0E,0x11,0x11,0x11,0x15,0x12,0x0D], R:[0x1E,0x11,0x11,0x1E,0x14,0x12,0x11],
+  S:[0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E], T:[0x1F,0x04,0x04,0x04,0x04,0x04,0x04],
+  U:[0x11,0x11,0x11,0x11,0x11,0x11,0x0E], V:[0x11,0x11,0x11,0x11,0x11,0x0A,0x04],
+  W:[0x11,0x11,0x11,0x15,0x15,0x1B,0x11], X:[0x11,0x11,0x0A,0x04,0x0A,0x11,0x11],
+  Y:[0x11,0x11,0x0A,0x04,0x04,0x04,0x04], Z:[0x1F,0x01,0x02,0x04,0x08,0x10,0x1F],
+  0:[0x0E,0x13,0x13,0x15,0x19,0x19,0x0E], 1:[0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
+  2:[0x0E,0x11,0x01,0x06,0x08,0x10,0x1F], 3:[0x1F,0x02,0x04,0x06,0x01,0x11,0x0E],
+  4:[0x02,0x06,0x0A,0x12,0x1F,0x02,0x02], 5:[0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E],
+  6:[0x06,0x08,0x10,0x1E,0x11,0x11,0x0E], 7:[0x1F,0x01,0x02,0x04,0x08,0x08,0x08],
+  8:[0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E], 9:[0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C],
+  " ":[0,0,0,0,0,0,0], "-":[0,0,0,0x1F,0,0,0],
+};
+function pixText(ctx, str, x, y, cell, gap, colour, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha; ctx.fillStyle = colour;
+  let cx = x;
+  for (const ch of str.toUpperCase()) {
+    const g = FONT[ch] || FONT[" "];
+    for (let r = 0; r < 7; r++)
+      for (let c = 0; c < 5; c++)
+        if (g[r] & (1 << (4 - c))) ctx.fillRect(cx + c * (cell + gap), y + r * (cell + gap), cell, cell);
+    cx += 6 * (cell + gap);
+  }
+  ctx.restore();
+}
+const textW = (s, cell, gap) => (s.length * 6 - 1) * (cell + gap) - gap;
+
+/* ---------- state ---------- */
+const blank = () => Array.from({ length: PLAY_ROWS }, () =>
+  Array.from({ length: COLS }, () => ({ t: "empty", c: null })));
+let cells = blank();
+let tool = "brick", shape = "pencil", filled = false, mirror = false, colour = "#FF4E6B";
+let stampText = "GO", stampH = 9;
+let undoStack = [], redoStack = [];
+
+const snap = () => cells.map(r => r.map(c => ({ ...c })));
+function pushUndo() { undoStack.push(snap()); if (undoStack.length > 60) undoStack.shift(); redoStack.length = 0; }
+
+const $ = (s) => document.querySelector(s);
+const gridCv = $("#grid"), gctx = gridCv.getContext("2d");
+const stripCv = $("#strip"), sctx = stripCv.getContext("2d");
+
+/* ---------- painting ---------- */
+function paint(r, c, t, col) {
+  if (r < 0 || c < 0 || r >= PLAY_ROWS || c >= COLS) return;
+  cells[r][c] = { t, c: t === "brick" ? col : null };
+  if (mirror) {
+    const m = COLS - 1 - c;
+    if (m !== c) cells[r][m] = { t, c: t === "brick" ? col : null };
+  }
+}
+function paintRect(r0, c0, r1, c1, t, col, filled) {
+  const [ra, rb] = [Math.min(r0, r1), Math.max(r0, r1)];
+  const [ca, cb] = [Math.min(c0, c1), Math.max(c0, c1)];
+  for (let r = ra; r <= rb; r++)
+    for (let c = ca; c <= cb; c++)
+      if (filled || r === ra || r === rb || c === ca || c === cb) paint(r, c, t, col);
+}
+
+/* ---------- shapes, rasterised onto the cell grid ---------- */
+const kk = (r, c) => r * 4096 + c;
+
+function lineCells(r0, c0, r1, c1) {          // Bresenham
+  const out = [];
+  let dx = Math.abs(c1 - c0), dy = Math.abs(r1 - r0), r = r0, c = c0;
+  const sx = c0 < c1 ? 1 : -1, sy = r0 < r1 ? 1 : -1;
+  let err = dx - dy;
+  for (;;) {
+    out.push([r, c]);
+    if (r === r1 && c === c1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; c += sx; }
+    if (e2 < dx) { err += dx; r += sy; }
+  }
+  return out;
+}
+
+function quadCells(r0, c0, cr, cc, r1, c1) {  // quadratic Bezier, deduped
+  const span = Math.abs(r1 - r0) + Math.abs(c1 - c0) + Math.abs(cr - r0) + Math.abs(cc - c0);
+  const n = Math.max(24, span * 3);
+  const seen = new Map();
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    const r = Math.round(u * u * r0 + 2 * u * t * cr + t * t * r1);
+    const c = Math.round(u * u * c0 + 2 * u * t * cc + t * t * c1);
+    seen.set(kk(r, c), [r, c]);
+  }
+  return [...seen.values()];
+}
+
+function boxSet(r0, c0, r1, c1) {
+  const out = new Set();
+  for (let r = Math.min(r0, r1); r <= Math.max(r0, r1); r++)
+    for (let c = Math.min(c0, c1); c <= Math.max(c0, c1); c++) out.add(kk(r, c));
+  return out;
+}
+function ellipseSet(r0, c0, r1, c1) {
+  const ra = Math.min(r0, r1), rb = Math.max(r0, r1);
+  const ca = Math.min(c0, c1), cb = Math.max(c0, c1);
+  const cy = (ra + rb) / 2, cx = (ca + cb) / 2;
+  const ry = Math.max(.5, (rb - ra) / 2 + .2), rx = Math.max(.5, (cb - ca) / 2 + .2);
+  const out = new Set();
+  for (let r = ra; r <= rb; r++)
+    for (let c = ca; c <= cb; c++)
+      if (((c - cx) / rx) ** 2 + ((r - cy) / ry) ** 2 <= 1) out.add(kk(r, c));
+  return out;
+}
+/* One-cell outline of any filled set: keep what touches the outside. Works for
+   every shape, and never thins out on a long thin ellipse the way a band does. */
+function outlineOf(set) {
+  const out = [];
+  for (const k of set) {
+    const r = Math.floor(k / 4096), c = k % 4096;
+    if (!set.has(kk(r - 1, c)) || !set.has(kk(r + 1, c)) ||
+        !set.has(kk(r, c - 1)) || !set.has(kk(r, c + 1))) out.push([r, c]);
+  }
+  return out;
+}
+const spread = (set) => [...set].map((k) => [Math.floor(k / 4096), k % 4096]);
+
+function shapeCells(sh, a, b, ctrl) {
+  let pts = [];
+  if (sh === "line") pts = lineCells(a.r, a.c, b.r, b.c);
+  else if (sh === "curve") pts = quadCells(a.r, a.c, ctrl.r, ctrl.c, b.r, b.c);
+  else if (sh === "rect" || sh === "ellipse") {
+    const set = sh === "rect" ? boxSet(a.r, a.c, b.r, b.c) : ellipseSet(a.r, a.c, b.r, b.c);
+    pts = filled ? spread(set) : outlineOf(set);
+  }
+  return pts.map(([r, c]) => ({ r, c, color: null }));
+}
+
+/* A sampled colour must still read as a plain static brick when it is exported:
+   an emoji's pure reds would otherwise come back as left-right moving bricks. */
+function safeColour(r, g, b) {
+  let rr = r, gg = g, bb = b;
+  for (let i = 0; i < 8; i++) {
+    const cl = classify(rr, gg, bb, 255);
+    if (cl.t === "brick") return cl.c;
+    if (cl.t === "empty") { rr = Math.round(rr * .72); gg = Math.round(gg * .72); bb = Math.round(bb * .72); }
+    else if (cl.t === "wall") { rr = Math.min(255, rr + 46); gg = Math.min(255, gg + 46); bb = Math.min(255, bb + 46); }
+    else { rr = Math.round(rr * .62 + 49); gg = Math.round(gg * .62 + 49); bb = Math.round(bb * .62 + 49); }
+  }
+  return "#8899AA";
+}
+
+/* Text and emoji become cells. Plain A-Z 0-9 uses the same 5x7 font the renderer
+   draws with, so it stays crisp at small sizes; anything else (emoji, CJK) is
+   rasterised through the canvas and sampled per cell. */
+let stampCache = null;
+function rasterStamp(text, hCells) {
+  const t = (text || "").trim();
+  const empty = { w: 0, h: 0, cells: [] };
+  if (!t) return empty;
+
+  if ([...t].every((ch) => FONT[ch.toUpperCase()] !== undefined)) {
+    const sc = Math.max(1, Math.round(hCells / 7));
+    const chars = [...t.toUpperCase()], cells = [];
+    chars.forEach((ch, i) => {
+      const g = FONT[ch] || FONT[" "];
+      for (let r = 0; r < 7; r++)
+        for (let c = 0; c < 5; c++)
+          if (g[r] & (1 << (4 - c)))
+            for (let y = 0; y < sc; y++)
+              for (let x = 0; x < sc; x++)
+                cells.push({ dr: r * sc + y, dc: (i * 6 + c) * sc + x, color: null });
+    });
+    return { w: (chars.length * 6 - 1) * sc, h: 7 * sc, cells };
+  }
+
+  const font = `${hCells}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",` +
+               `"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif`;
+  const probe = document.createElement("canvas").getContext("2d");
+  probe.font = font;
+  const pad = 2;
+  const w = Math.max(1, Math.ceil(probe.measureText(t).width) + pad * 2);
+  const h = Math.ceil(hCells * 1.4) + pad * 2;
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  cx.font = font; cx.textBaseline = "middle"; cx.textAlign = "left";
+  cx.fillStyle = "#111111";
+  cx.fillText(t, pad, h / 2);
+
+  const d = cx.getImageData(0, 0, w, h).data;
+  let minr = h, maxr = -1, minc = w, maxc = -1;
+  const raw = [];
+  for (let r = 0; r < h; r++)
+    for (let c = 0; c < w; c++) {
+      const i = (r * w + c) * 4;
+      if (d[i + 3] < 110) continue;
+      raw.push([r, c, d[i], d[i + 1], d[i + 2]]);
+      if (r < minr) minr = r; if (r > maxr) maxr = r;
+      if (c < minc) minc = c; if (c > maxc) maxc = c;
+    }
+  if (!raw.length) return empty;
+
+  const cells = raw.map(([r, c, R, G, B]) => {
+    // A monochrome glyph carries no colour of its own -- use the current tool.
+    const mono = Math.abs(R - 17) < 30 && Math.abs(G - 17) < 30 && Math.abs(B - 17) < 30;
+    return { dr: r - minr, dc: c - minc, color: mono ? null : safeColour(R, G, B) };
+  });
+  return { w: maxc - minc + 1, h: maxr - minr + 1, cells };
+}
+function stampShape() {
+  const key = stampText + "|" + stampH;
+  if (!stampCache || stampCache.key !== key) stampCache = { key, v: rasterStamp(stampText, stampH) };
+  return stampCache.v;
+}
+function stampAt(r, c) {
+  const s = stampShape();
+  const r0 = r - Math.floor(s.h / 2), c0 = c - Math.floor(s.w / 2);
+  return s.cells.map((p) => ({
+    r: r0 + p.dr, c: c0 + p.dc,
+    color: tool === "brick" ? p.color : null,     // a typed tool wins over glyph colour
+  }));
+}
+
+/* ---------- drawing the editor grid ---------- */
+function cellFill(cell) {
+  if (cell.t === "empty") return null;
+  return cell.t === "brick" ? cell.c : TYPES[cell.t].fill;
+}
+function drawGrid(preview) {
+  gctx.fillStyle = "#FFFFFF";
+  gctx.fillRect(0, 0, GRID_W, GRID_H);
+
+  for (let r = 0; r < PLAY_ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const f = cellFill(cells[r][c]);
+      if (!f) continue;
+      gctx.fillStyle = f;
+      gctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+    }
+
+  gctx.lineWidth = 1;
+  for (let c = 0; c <= COLS; c++) {
+    gctx.strokeStyle = c % 4 === 0 ? "rgba(0,0,0,.16)" : "rgba(0,0,0,.10)";
+    gctx.beginPath(); gctx.moveTo(c * CELL + .5, 0); gctx.lineTo(c * CELL + .5, GRID_H); gctx.stroke();
+  }
+  for (let r = 0; r <= PLAY_ROWS; r++) {
+    gctx.strokeStyle = r % 4 === 0 ? "rgba(0,0,0,.16)" : "rgba(0,0,0,.10)";
+    gctx.beginPath(); gctx.moveTo(0, r * CELL + .5); gctx.lineTo(GRID_W, r * CELL + .5); gctx.stroke();
+  }
+
+  /* direction marks are editor-only: the exported file carries direction in the
+     key colour, but on screen they make a map readable at a glance */
+  for (let r = 0; r < PLAY_ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const a = TYPES[cells[r][c].t].arrow;
+      if (!a) continue;
+      gctx.save();
+      gctx.fillStyle = "rgba(255,255,255,.95)";
+      gctx.font = "600 12px " + getComputedStyle(document.body).fontFamily;
+      gctx.textAlign = "center"; gctx.textBaseline = "middle";
+      gctx.fillText(a, c * CELL + CELL / 2, r * CELL + CELL / 2 + .5);
+      gctx.restore();
+    }
+
+  if (preview && preview.length) {
+    gctx.save();
+    gctx.globalAlpha = .62;
+    for (const p of preview) {
+      if (p.r < 0 || p.c < 0 || p.r >= PLAY_ROWS || p.c >= COLS) continue;
+      gctx.fillStyle = p.erase ? "#FFFFFF"
+        : (p.color && tool === "brick") ? p.color
+        : (tool === "empty" ? "#FFFFFF" : TYPES[tool].fill);
+      gctx.fillRect(p.c * CELL, p.r * CELL, CELL, CELL);
+      gctx.strokeStyle = "rgba(224,49,87,.85)"; gctx.lineWidth = 1;
+      gctx.strokeRect(p.c * CELL + .5, p.r * CELL + .5, CELL - 1, CELL - 1);
+    }
+    gctx.restore();
+  }
+}
+
+/* ---------- the key strip, byte-for-byte the CLI layout ---------- */
+function drawStrip(ctx, W, top, h) {
+  const pairs = [
+    ["#FFFFFF", "EMPTY", "WHITE"], ["#000000", "WALL", "BLACK"],
+    ["#0000FF", "WALL LR", "0000FF"], ["#FF00FF", "WALL UD", "FF00FF"],
+    ["#FF0000", "BRICK LR", "FF0000"], ["#00FF00", "BRICK UD", "00FF00"],
+  ];
+  ctx.fillStyle = "#0E1222"; ctx.fillRect(0, top, W, h);
+  ctx.fillStyle = "#FF4E6B"; ctx.fillRect(0, top, W, 3);
+
+  pixText(ctx, "MAP KEY", 14, top + 12, 3, 1, "#FFFFFF", .92);
+  const sw = 20, rowH = 28, noteX = 158, colX = [14, Math.round(W / 2) + 6], y0 = top + 44;
+  const entry = (hex, label, note, x, y) => {
+    ctx.fillStyle = hex; ctx.fillRect(x, y, sw, sw);
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1;
+    ctx.strokeRect(x + .5, y + .5, sw - 1, sw - 1);
+    pixText(ctx, label, x + sw + 8, y + 3, 2, 1, "#FFFFFF", .94);
+    if (note) pixText(ctx, note, x + sw + 8 + noteX, y + 3, 2, 1, "#9FB0D8", .85);
+  };
+  pairs.forEach(([hex, l, n], i) => entry(hex, l, n, colX[i < 3 ? 0 : 1], y0 + (i % 3) * rowH));
+  const yLast = y0 + 3 * rowH + 6;
+  entry("#FF4E6B", "BRICK", "", colX[0], yLast);
+  pixText(ctx, "ANY OTHER COLOUR - AS PAINTED", colX[0] + sw + 8 + 130, yLast + 3, 2, 1, "#9FB0D8", .85);
+  pixText(ctx, "KEY STRIP - NOT PART OF THE MAP", 14, top + h - 28, 2, 1, "#7C8BB8", .9);
+}
+
+/* ---------- what the simulator will see ---------- */
+function analyse() {
+  let bricks = 0, walls = 0;
+  const movers = new Map();
+  for (let r = 0; r < PLAY_ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const t = cells[r][c].t;
+      if (t === "empty") continue;
+      if (t === "wall" || t === "wallLR" || t === "wallUD") walls++; else bricks++;
+      const axis = t.endsWith("LR") ? "h" : t.endsWith("UD") ? "v" : null;
+      if (axis) movers.set(r * 4096 + c, axis);
+    }
+
+  const seen = new Set(); let groups = 0, largest = 0;
+  for (const [k, axis] of movers) {
+    if (seen.has(k)) continue;
+    let n = 0; const st = [k]; seen.add(k);
+    while (st.length) {
+      const q = st.pop(); n++;
+      const r = Math.floor(q / 4096), c = q % 4096;
+      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nk = (r + dr) * 4096 + (c + dc);
+        if (movers.get(nk) === axis && !seen.has(nk)) { seen.add(nk); st.push(nk); }
+      }
+    }
+    groups++; largest = Math.max(largest, n);
+  }
+
+  $("#s-bricks").textContent = bricks;
+  $("#s-walls").textContent = walls;
+  $("#s-groups").textContent = groups;
+  $("#s-largest").textContent = largest;
+  const v = $("#validity");
+  if (!bricks) {
+    v.textContent = "Paint at least one brick — a map with no bricks cannot be cleared.";
+    v.classList.add("bad");
+  } else {
+    v.textContent = `${bricks} brick${bricks === 1 ? "" : "s"} to clear. Adjacent movers on the same axis travel as one body.`;
+    v.classList.remove("bad");
+  }
+}
+
+function render(preview) { drawGrid(preview); analyse(); }
+
+/* ---------- pointer ---------- */
+function cellAt(ev) {
+  const b = gridCv.getBoundingClientRect();
+  const x = (ev.clientX - b.left) * (GRID_W / b.width);
+  const y = (ev.clientY - b.top) * (GRID_H / b.height);
+  return { c: Math.floor(x / CELL), r: Math.floor(y / CELL) };
+}
+const inGrid = (p) => p.r >= 0 && p.c >= 0 && p.r < PLAY_ROWS && p.c < COLS;
+
+let stroke = null;   // an in-progress drag
+let curve = null;    // a curve waiting for its bend
+let ghost = [];      // cells the pending action would paint
+
+function commit(list, erase) {
+  if (!list.length) return;
+  pushUndo();
+  for (const p of list) paint(p.r, p.c, erase ? "empty" : tool, p.color || colour);
+  ghost = []; render();
+}
+
+gridCv.addEventListener("contextmenu", (e) => e.preventDefault());
+
+gridCv.addEventListener("pointerdown", (ev) => {
+  const p = cellAt(ev);
+  if (!inGrid(p)) return;
+  gridCv.setPointerCapture(ev.pointerId);
+
+  if (ev.altKey) {                                   // eyedropper
+    const cell = cells[p.r][p.c];
+    selectTool(cell.t);
+    if (cell.t === "brick" && cell.c) setColour(cell.c);
+    return;
+  }
+  const erase = ev.button === 2;
+
+  if (curve) {                                       // second click sets the bend
+    commit(shapeCells("curve", curve.a, curve.b, p), curve.erase);
+    curve = null;
+    return;
+  }
+  if (shape === "stamp") { commit(stampAt(p.r, p.c), erase); return; }
+
+  if (shape === "pencil") {
+    pushUndo();
+    stroke = { a: p, b: p, erase, painted: true };
+    paint(p.r, p.c, erase ? "empty" : tool, colour);
+    render();
+    return;
+  }
+  stroke = { a: p, b: p, erase, painted: false };
+  ghost = shapeCells(shape, p, p, p);
+  render(ghost);
+});
+
+gridCv.addEventListener("pointermove", (ev) => {
+  const p = cellAt(ev);
+  $("#coord").textContent = inGrid(p)
+    ? String(p.c).padStart(2, "0") + ", " + String(p.r).padStart(2, "0") : "--, --";
+
+  if (curve) {                                       // moving bends the curve
+    ghost = shapeCells("curve", curve.a, curve.b, p);
+    render(ghost);
+    return;
+  }
+  if (shape === "stamp" && !stroke) {
+    ghost = inGrid(p) ? stampAt(p.r, p.c) : [];
+    render(ghost);
+    return;
+  }
+  if (!stroke) return;
+
+  stroke.b = { r: Math.max(0, Math.min(PLAY_ROWS - 1, p.r)),
+               c: Math.max(0, Math.min(COLS - 1, p.c)) };
+  if (shape === "pencil") {
+    // fill the gap a fast drag leaves between samples
+    for (const [r, c] of lineCells(stroke.a.r, stroke.a.c, stroke.b.r, stroke.b.c))
+      paint(r, c, stroke.erase ? "empty" : tool, colour);
+    stroke.a = stroke.b;
+    render();
+  } else {
+    ghost = shapeCells(shape, stroke.a, stroke.b, stroke.b);
+    render(ghost);
+  }
+});
+
+addEventListener("pointerup", () => {
+  if (!stroke) return;
+  const st = stroke; stroke = null;
+  if (shape === "pencil") { render(); return; }
+  if (shape === "curve") {
+    // hold the chord and let the next move bend it; a click commits
+    curve = { a: st.a, b: st.b, erase: st.erase };
+    ghost = shapeCells("curve", st.a, st.b, st.b);
+    $("#stamp-note-live").textContent = "Move to bend the curve, click to place it.";
+    render(ghost);
+    return;
+  }
+  commit(shapeCells(shape, st.a, st.b, st.b), st.erase);
+});
+
+gridCv.addEventListener("pointerleave", () => {
+  if (stroke || curve) return;
+  $("#coord").textContent = "--, --";
+  if (ghost.length) { ghost = []; render(); }
+});
+
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && (curve || ghost.length)) {
+    curve = null; ghost = []; render();
+    $("#stamp-note-live").textContent = "";
+  }
+});
+
+/* ---------- controls ---------- */
+const toolsEl = $("#tools");
+for (const key of ORDER) {
+  const t = TYPES[key];
+  const b = document.createElement("button");
+  b.className = "tool"; b.type = "button"; b.dataset.tool = key;
+  b.setAttribute("aria-pressed", String(key === tool));
+  b.innerHTML = `<span class="chip" ${t.arrow ? `data-arrow="${t.arrow}"` : ""}></span>
+                 <span class="nm"></span><span class="hx"></span>`;
+  b.querySelector(".nm").textContent = t.nm;
+  b.querySelector(".hx").textContent = t.hex;
+  b.querySelector(".chip").style.background = key === "empty" ? "#FFFFFF" : t.fill;
+  b.addEventListener("click", () => selectTool(key));
+  toolsEl.append(b);
+}
+function selectTool(key) {
+  if (!TYPES[key]) return;
+  tool = key;
+  toolsEl.querySelectorAll(".tool").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.tool === key)));
+  $("#colour-note").textContent = key === "brick"
+    ? "Painted colour is kept as the brick colour."
+    : "This type has a fixed key colour.";
+}
+
+const swEl = $("#swatches");
+for (const hex of SAFE) {
+  const b = document.createElement("button");
+  b.type = "button"; b.style.background = hex; b.title = hex;
+  b.setAttribute("aria-label", "Brick colour " + hex);
+  b.addEventListener("click", () => { setColour(hex); selectTool("brick"); });
+  swEl.append(b);
+}
+function setColour(hex) {
+  colour = hex.toUpperCase();
+  $("#colour").value = colour;
+  $("#colour-hex").textContent = colour;
+  TYPES.brick.fill = colour;
+  toolsEl.querySelector('[data-tool="brick"] .chip').style.background = colour;
+  swEl.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.title.toUpperCase() === colour)));
+}
+$("#colour").addEventListener("input", (e) => { setColour(e.target.value); selectTool("brick"); });
+
+const EMOJI = ["\u2764\uFE0F", "\uD83D\uDD25", "\u2B50", "\uD83D\uDE00", "\uD83D\uDC80", "\uD83D\uDE80",
+               "\uD83C\uDF1F", "\u26A1", "\uD83C\uDF08", "\uD83D\uDCA7"];
+const quickEl = $("#stamp-quick");
+for (const e of EMOJI) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = e; b.title = "Stamp " + e;
+  b.addEventListener("click", () => { $("#stamp-text").value = e; setStamp(e, stampH); selectShape("stamp"); });
+  quickEl.append(b);
+}
+
+function selectShape(name) {
+  shape = name;
+  curve = null; ghost = [];
+  $("#stamp-note-live").textContent = "";
+  $("#shapes").querySelectorAll("button").forEach((x) =>
+    x.setAttribute("aria-pressed", String(x.dataset.shape === name)));
+  $("#stamp-group").hidden = name !== "stamp";
+  $("#filled").hidden = !(name === "rect" || name === "ellipse");
+  render();
+}
+$("#shapes").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (b) selectShape(b.dataset.shape);
+});
+
+$("#filled").addEventListener("click", (e) => {
+  filled = !filled;
+  e.currentTarget.setAttribute("aria-pressed", String(filled));
+  e.currentTarget.querySelector(".state").textContent = filled ? "filled" : "outline";
+});
+
+function setStamp(text, h) {
+  stampText = text; stampH = h;
+  stampCache = null;
+  const s = stampShape();
+  $("#stamp-dims").textContent = s.w ? `${s.w} \u00d7 ${s.h} cells` : "empty";
+  const note = $("#stamp-note");
+  if (s.w > COLS || s.h > PLAY_ROWS) {
+    note.textContent = `Too big for the ${COLS} \u00d7 ${PLAY_ROWS} grid \u2014 lower the size.`;
+    note.classList.add("bad");
+  } else {
+    note.textContent = "Move over the grid to place it, click to stamp.";
+    note.classList.remove("bad");
+  }
+}
+$("#stamp-text").addEventListener("input", (e) => setStamp(e.target.value, stampH));
+$("#stamp-size").addEventListener("input", (e) => setStamp(stampText, +e.target.value));
+$("#mirror").addEventListener("click", (e) => {
+  mirror = !mirror;
+  e.currentTarget.setAttribute("aria-pressed", String(mirror));
+  e.currentTarget.querySelector(".state").textContent = mirror ? "on" : "off";
+});
+
+$("#btn-undo").addEventListener("click", undo);
+$("#btn-redo").addEventListener("click", redo);
+function undo() { if (!undoStack.length) return; redoStack.push(snap()); cells = undoStack.pop(); render(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snap()); cells = redoStack.pop(); render(); }
+$("#btn-clear").addEventListener("click", () => { pushUndo(); cells = blank(); render(); });
+
+addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea")) return;
+  const meta = e.metaKey || e.ctrlKey;
+  if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (meta && e.key.toLowerCase() === "e") { e.preventDefault(); exportPng(); }
+  else if (/^[1-7]$/.test(e.key)) selectTool(ORDER[+e.key - 1]);
+});
+
+/* ---------- import ---------- */
+$("#btn-import").addEventListener("click", () => $("#file").click());
+$("#file").addEventListener("change", async (e) => {
+  const f = e.target.files?.[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { importImage(img); URL.revokeObjectURL(img.src); };
+  img.src = URL.createObjectURL(f);
+  e.target.value = "";
+});
+/* Same rules as src/imagemap.js: nine probes per cell, majority wins. */
+function importImage(img) {
+  const cv = document.createElement("canvas");
+  cv.width = img.width; cv.height = img.height;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(img, 0, 0);
+  const data = cx.getImageData(0, 0, img.width, img.height).data;
+
+  /* a file may be grid-only or grid + key strip; use the aspect to tell */
+  const withStrip = Math.abs(img.width / img.height - COLS / (PLAY_ROWS + DOC_ROWS));
+  const gridOnly = Math.abs(img.width / img.height - COLS / PLAY_ROWS);
+  const rowsInFile = withStrip <= gridOnly ? PLAY_ROWS + DOC_ROWS : PLAY_ROWS;
+  const cw = img.width / COLS, ch = img.height / rowsInFile;
+
+  pushUndo();
+  cells = blank();
+  const probes = [.3, .5, .7];
+  for (let r = 0; r < PLAY_ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const votes = new Map();
+      for (const py of probes) for (const px of probes) {
+        const x = Math.min(img.width - 1, Math.floor((c + px) * cw));
+        const y = Math.min(img.height - 1, Math.floor((r + py) * ch));
+        const i = (y * img.width + x) * 4;
+        const cell = classify(data[i], data[i+1], data[i+2], data[i+3]);
+        const k = cell.t + ":" + (cell.c || "");
+        const v = votes.get(k) || { n: 0, cell };
+        v.n++; votes.set(k, v);
+      }
+      let win = null;
+      for (const v of votes.values()) if (!win || v.n > win.n) win = v;
+      cells[r][c] = win.cell;
+    }
+  render();
+}
+const KEYMAP = [
+  { rgb: [0,0,255],   t: "wallLR" }, { rgb: [255,0,255], t: "wallUD" },
+  { rgb: [255,0,0],   t: "brickLR" }, { rgb: [0,255,0],  t: "brickUD" },
+];
+function classify(r, g, b, a) {
+  if (a < 128) return { t: "empty", c: null };
+  for (const k of KEYMAP)
+    if (Math.hypot(r - k.rgb[0], g - k.rgb[1], b - k.rgb[2]) < 50) return { t: k.t, c: null };
+  const lum = (.299 * r + .587 * g + .114 * b) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  const sat = mx === 0 ? 0 : (mx - mn) / mx;
+  if (lum < .22) return { t: "wall", c: null };
+  if (sat < .12 && lum > .80) return { t: "empty", c: null };
+  const hex = "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return { t: "brick", c: hex };
+}
+
+/* ---------- export ---------- */
+function buildPng() {
+  const cv = document.createElement("canvas");
+  cv.width = GRID_W; cv.height = GRID_H + STRIP_H;
+  const cx = cv.getContext("2d");
+  cx.fillStyle = "#FFFFFF"; cx.fillRect(0, 0, GRID_W, GRID_H);
+  for (let r = 0; r < PLAY_ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const f = cellFill(cells[r][c]);
+      if (!f) continue;
+      cx.fillStyle = f; cx.fillRect(c * CELL, r * CELL, CELL, CELL);
+    }
+  cx.lineWidth = 1;
+  for (let c = 0; c <= COLS; c++) {
+    cx.strokeStyle = c % 4 === 0 ? "rgba(0,0,0,.16)" : "rgba(0,0,0,.10)";
+    cx.beginPath(); cx.moveTo(c * CELL + .5, 0); cx.lineTo(c * CELL + .5, GRID_H); cx.stroke();
+  }
+  for (let r = 0; r <= PLAY_ROWS; r++) {
+    cx.strokeStyle = r % 4 === 0 ? "rgba(0,0,0,.16)" : "rgba(0,0,0,.10)";
+    cx.beginPath(); cx.moveTo(0, r * CELL + .5); cx.lineTo(GRID_W, r * CELL + .5); cx.stroke();
+  }
+  drawStrip(cx, GRID_W, GRID_H, STRIP_H);
+  return cv;
+}
+const dlg = $("#dlg");
+function exportPng() {
+  $("#out").src = buildPng().toDataURL("image/png");
+  dlg.showModal();
+}
+
+/* Saving a file: hosted, the viewer confirms through the downloads capability;
+   opened from a local file there is no host, and a plain anchor works. */
+let saver = null, savingMode = "anchor";
+(async () => {
+  if (!window.claude?.use) return;            // local file
+  savingMode = "none";
+  try { saver = await window.claude.use("downloads"); } catch { saver = null; }
+  if (saver) savingMode = "capability";
+  else $("#btn-download").hidden = true;      // hosted but no saves here
+})();
+
+async function saveFile() {
+  const btn = $("#btn-download"), was = btn.textContent;
+  const done = (msg) => { btn.textContent = msg; setTimeout(() => { btn.textContent = was; }, 1800); };
+
+  if (savingMode === "anchor") {
+    const a = document.createElement("a");
+    a.href = buildPng().toDataURL("image/png");
+    a.download = "my-map.png";
+    a.click();
+    return done("Saved");
+  }
+  if (savingMode !== "capability") return;
+
+  btn.disabled = true;
+  try {
+    const blob = await new Promise((res) => buildPng().toBlob(res, "image/png"));
+    await saver.save({ filename: "my-map.png", data: blob });
+    done("Saved");
+  } catch (err) {
+    const code = err?.code;
+    if (code === "declined") done("Cancelled");
+    else if (code === "rate_limited") done("Try again");
+    else if (code === "unavailable" || code === "not_granted" ||
+             code === "capability_disabled" || code === "capability_removed") btn.hidden = true;
+    else done("Save failed");
+  } finally { btn.disabled = false; }
+}
+$("#btn-download").addEventListener("click", saveFile);
+$("#btn-export").addEventListener("click", exportPng);
+$("#btn-close").addEventListener("click", () => dlg.close());
+$("#btn-copy-cmd").addEventListener("click", async (e) => {
+  try { await navigator.clipboard.writeText($("#cmd").textContent); e.target.textContent = "Copied"; }
+  catch { e.target.textContent = "Select it"; }
+  setTimeout(() => { e.target.textContent = "Copy"; }, 1400);
+});
+$("#btn-copy-img").addEventListener("click", async (e) => {
+  const label = e.target;
+  try {
+    const blob = await new Promise((res) => buildPng().toBlob(res, "image/png"));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    label.textContent = "Copied";
+  } catch { label.textContent = "Not available"; }
+  setTimeout(() => { label.textContent = "Copy image"; }, 1600);
+});
+
+/* ---------- boot ---------- */
+drawStrip(sctx, GRID_W, 0, STRIP_H);
+setColour(colour);
+selectTool("brick");
+selectShape("pencil");
+setStamp(stampText, stampH);
+render();
+window.__editor = {                       // a handle for scripted checks
+  set: (r, c, t, col) => { paint(r, c, t, col || colour); render(); },
+  shapeCells, stampAt, rasterStamp, safeColour, classify,
+  dataUrl: () => buildPng().toDataURL("image/png"),
+  grid: () => cells,
+};
+</script>
