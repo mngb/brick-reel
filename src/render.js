@@ -1,5 +1,5 @@
 import { textGrid } from './font.js';
-import { piercing, frozen, wrapping, activeEffects } from './sim.js';
+import { piercing, frozen, wrapping } from './sim.js';
 import { PALETTES } from './config.js';
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -79,28 +79,6 @@ function drawHud(ctx, cfg, state, fx) {
   colors.forEach((c, i) => lg.addColorStop(i / (colors.length - 1), c));
   ctx.fillStyle = lg;
   ctx.fillRect(0, by, W * pct, barH);
-
-  // One pill per running effect, sitting clear of the progress bar.
-  const running = activeEffects(state);
-  if (running.length) {
-    const eh = Math.max(6, Math.round(11 * k));
-    const gap = Math.round(10 * k);
-    const hw = Math.min(W * 0.24, (W * 0.84 - gap * (running.length - 1)) / running.length);
-    const hy = by - eh - Math.round(16 * k);
-    let hx = (W - (hw * running.length + gap * (running.length - 1))) / 2;
-    for (const e of running) {
-      ctx.fillStyle = 'rgba(255,255,255,0.13)';
-      roundRect(ctx, hx, hy, hw, eh, eh / 2); ctx.fill();
-      const col = cfg.drops.colors[e.kind] ?? '#FFFFFF';
-      ctx.save();
-      roundRect(ctx, hx, hy, hw, eh, eh / 2); ctx.clip();
-      ctx.shadowColor = col; ctx.shadowBlur = 12 * k;
-      ctx.fillStyle = col;
-      ctx.fillRect(hx, hy, hw * e.left, eh);
-      ctx.restore();
-      hx += hw + gap;
-    }
-  }
 
   if (cfg.watermark)
     pixelText(ctx, [cfg.watermark], { cx: W / 2, y: by - Math.round(46 * k), cell: 4 * k, gap: 1 * k, color: '#FFFFFF', alpha: 0.22 });
