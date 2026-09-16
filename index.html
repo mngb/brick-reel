@@ -183,12 +183,14 @@ aside {
   border-color: var(--accent); color: var(--accent); background: var(--panel-2);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-.clip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.clip button {
-  padding: 7px 2px; border: 1px solid var(--rule-2); border-radius: 6px;
-  background: var(--panel-2); cursor: pointer; font-size: 12px; font-weight: 600;
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: baseline; }
+.keys kbd {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+  border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px;
+  padding: 1px 5px; background: var(--panel-2); white-space: nowrap;
 }
-.clip button:disabled { opacity: .38; cursor: not-allowed; }
+.keys span { font-size: 12px; color: var(--ink-2); }
+.keys span.dim { color: var(--ink-3); }
 
 .stamp { display: flex; flex-direction: column; gap: 9px; }
 .stamp input[type="text"] {
@@ -280,7 +282,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 8</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 9</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -337,10 +339,13 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
 
       <div class="group" id="clip-group" hidden>
         <h2>Selection</h2>
-        <div class="clip">
-          <button id="btn-copy" disabled>Copy</button>
-          <button id="btn-cut" disabled>Cut</button>
-          <button id="btn-paste" disabled>Paste</button>
+        <div class="keys">
+          <kbd>Ctrl C</kbd><span>copy</span>
+          <kbd>Ctrl X</kbd><span>cut</span>
+          <kbd>Ctrl V</kbd><span>paste under the cursor</span>
+          <kbd>↑ ↓ ← →</kbd><span>nudge one cell</span>
+          <kbd>Del</kbd><span>clear the selection</span>
+          <kbd>Esc</kbd><span>drop it where it is</span>
         </div>
         <p class="note" id="clip-note">Drag a box to pick up whatever is inside it.</p>
       </div>
@@ -893,9 +898,6 @@ function liftSelection(a, b) {
   clipState();
 }
 function clipState() {
-  $("#btn-copy").disabled = !sel || !sel.items.length;
-  $("#btn-cut").disabled = !sel || !sel.items.length;
-  $("#btn-paste").disabled = !clip;
   const note = $("#clip-note");
   if (sel) note.textContent = clip
     ? "Drag it, or copy / cut it. Paste drops a copy under the cursor."
@@ -1174,10 +1176,6 @@ $("#shapes").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (b) selectShape(b.dataset.shape);
 });
 
-$("#btn-copy").addEventListener("click", copySelection);
-$("#btn-cut").addEventListener("click", cutSelection);
-$("#btn-paste").addEventListener("click", pasteClip);
-
 $("#filled").addEventListener("click", (e) => {
   filled = !filled;
   e.currentTarget.setAttribute("aria-pressed", String(filled));
@@ -1216,9 +1214,25 @@ $("#btn-clear").addEventListener("click", () => { dropSelection(); pushUndo(); c
 addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea")) return;
   const meta = e.metaKey || e.ctrlKey;
-  if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
-  else if (meta && e.key.toLowerCase() === "e") { e.preventDefault(); exportPng(); }
-  else if (/^[1-7]$/.test(e.key)) selectTool(ORDER[+e.key - 1]);
+  const k = e.key.toLowerCase();
+
+  if (meta) {
+    if (k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    else if (k === "e") { e.preventDefault(); exportPng(); }
+    else if (k === "c" && sel && sel.items.length) { e.preventDefault(); copySelection(); }
+    else if (k === "x" && sel && sel.items.length) { e.preventDefault(); cutSelection(); }
+    else if (k === "v" && clip) { e.preventDefault(); pasteClip(); }
+    return;
+  }
+
+  if (sel) {
+    const nudge = { arrowleft: [0, -1], arrowright: [0, 1], arrowup: [-1, 0], arrowdown: [1, 0] }[k];
+    if (nudge) { e.preventDefault(); sel.dr += nudge[0]; sel.dc += nudge[1]; applySel(); return; }
+    if (k === "delete" || k === "backspace") { e.preventDefault(); sel.items = []; applySel(); clipState(); return; }
+    if (k === "escape" || k === "enter") { e.preventDefault(); dropSelection(); return; }
+  }
+
+  if (/^[1-7]$/.test(e.key)) selectTool(ORDER[+e.key - 1]);
 });
 
 /* ---------- import ---------- */
