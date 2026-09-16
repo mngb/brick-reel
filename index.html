@@ -182,15 +182,6 @@ aside {
   border-color: var(--accent); color: var(--accent); background: var(--panel-2);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: baseline; }
-.keys kbd {
-  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
-  border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px;
-  padding: 1px 5px; background: var(--panel-2); white-space: nowrap;
-}
-.keys span { font-size: 12px; color: var(--ink-2); }
-.keys span.dim { color: var(--ink-3); }
-
 .toggle {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 8px 10px; border: 1px solid var(--rule-2); border-radius: 6px;
@@ -267,7 +258,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 12</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 13</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -320,20 +311,6 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
         </button>
       </div>
 
-      <div class="group" id="clip-group" hidden>
-        <h2>Selection</h2>
-        <div class="keys">
-          <kbd>Ctrl C</kbd><span>copy</span>
-          <kbd>Ctrl X</kbd><span>cut</span>
-          <kbd>Ctrl V</kbd><span>paste under the cursor</span>
-          <kbd>↑ ↓ ← →</kbd><span>nudge one cell</span>
-          <kbd>+ &nbsp;-</kbd><span>scale up / down</span>
-          <kbd>0</kbd><span>back to original size</span>
-          <kbd>Del</kbd><span>clear the selection</span>
-          <kbd>Esc</kbd><span>drop it where it is</span>
-        </div>
-        <p class="note" id="clip-note">Drag a box to pick up whatever is inside it.</p>
-      </div>
     </aside>
 
     <div class="stage">
@@ -809,15 +786,7 @@ function liftSelection(a, b) {
   applySel();
   clipState();
 }
-function clipState() {
-  const note = $("#clip-note");
-  if (sel) note.textContent = clip
-    ? "Drag it, or copy / cut it. Paste drops a copy under the cursor."
-    : "Drag it to move it. Copy or cut it to reuse it elsewhere.";
-  else note.textContent = clip
-    ? "Drag a box to pick something up, or paste what you took."
-    : "Drag a box to pick up whatever is inside it.";
-}
+function clipState() { /* the selection reports itself in the status bar */ }
 
 /** Take the selection's contents, stored relative to the box's own corner. */
 function copySelection() {
@@ -1061,7 +1030,6 @@ function selectShape(name) {
   $("#hint").textContent = "";
   $("#shapes").querySelectorAll("button").forEach((x) =>
     x.setAttribute("aria-pressed", String(x.dataset.shape === name)));
-  $("#clip-group").hidden = name !== "select";
   $("#filled").hidden = !(name === "rect" || name === "ellipse");
   $("#mirror").hidden = name === "select";
   clipState();
