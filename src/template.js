@@ -2,8 +2,6 @@ import { Canvas } from 'skia-canvas';
 import { writeFileSync } from 'node:fs';
 import { playRows, templateRows } from './level.js';
 import { MARK_INSET, MARK_SIZE } from './imagemap.js';
-import { pixelText } from './render.js';
-import { PALETTES } from './config.js';
 
 const LINE = 'rgba(0,0,0,0.10)';       // light enough to read as empty
 const LINE_MAJOR = 'rgba(0,0,0,0.16)';   // every mark here must still read as "empty"
@@ -58,10 +56,6 @@ export function writeTemplate(cfg, out, { cellPx = 20, fill = null } = {}) {
 }
 
 
-/** Width of a pixelText run, so it can be laid out from the left edge. */
-function textW(str, cell, gap) {
-  return (str.length * 6 - 1) * (cell + gap) - gap;
-}
 
 /**
  * The key, printed into the bottom strip of the template itself. It occupies a
@@ -70,42 +64,11 @@ function textW(str, cell, gap) {
  * content, however it is painted.
  */
 function drawKeyStrip(ctx, cfg, W, top, h) {
-  const pairs = [
-    ['#FFFFFF', 'EMPTY', 'WHITE'],
-    ['#000000', 'WALL', 'BLACK'],
-    ['#FF4E6B', 'BRICK', 'ANY COLOUR'],
-    ['#FF0000', 'MARK LR', 'SIDEWAYS'],
-    ['#00FF00', 'MARK UD', 'UP-DOWN'],
-    ['#FFFFFF', 'NO MARK', 'STATIC'],
-  ];
-
+  // The band is kept -- it is what makes the file cols x templateRows cells, so
+  // the loader can find the boundary from the image size alone. Nothing is
+  // printed in it any more.
   ctx.fillStyle = '#0E1222';
   ctx.fillRect(0, top, W, h);
   ctx.fillStyle = '#FF4E6B';
   ctx.fillRect(0, top, W, 3);
-
-  const left = (str, x, y, cell, gap, color, alpha) =>
-    pixelText(ctx, [str], { cx: x + textW(str, cell, gap) / 2, y, cell, gap, color, alpha });
-
-  left('MAP KEY', 14, top + 12, 3, 1, '#FFFFFF', 0.92);
-
-  const sw = 20, rowH = 28, noteX = 134;
-  const colX = [14, Math.round(W / 2) + 6];
-  const y0 = top + 44;
-
-  const entry = (hex, label, note, x, y) => {
-    ctx.fillStyle = hex;
-    ctx.fillRect(x, y, sw, sw);
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, sw - 1, sw - 1);
-    left(label, x + sw + 8, y + 3, 2, 1, '#FFFFFF', 0.94);
-    if (note) left(note, x + sw + 8 + noteX, y + 3, 2, 1, '#9FB0D8', 0.85);
-  };
-
-  pairs.forEach(([hex, label, note], i) =>
-    entry(hex, label, note, colX[i < 3 ? 0 : 1], y0 + (i % 3) * rowH));
-
-  // The catch-all gets its own full-width line; its note is too long for a column.
-
 }

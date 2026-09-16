@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Offline deterministic breakout renderer -> mp4 for social video",
   "scripts": {
-    "render": "node src/main.js"
+    "render": "node src/main.js",
+    "test": "node test/editor.mjs"
   },
   "dependencies": {
     "skia-canvas": "^3.0.8"
