@@ -171,17 +171,25 @@ aside {
 .seg button:last-child { border-right: 0; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
-.shapes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .shapes button {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 2px 7px; border: 1px solid var(--rule-2); border-radius: 6px;
-  background: var(--panel-2); cursor: pointer; font-size: 11px; font-weight: 600;
+  padding: 8px 1px 7px; border: 1px solid var(--rule-2); border-radius: 6px;
+  background: var(--panel-2); cursor: pointer; font-size: 10px; font-weight: 600;
+  letter-spacing: -.01em;
 }
-.shapes button svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.shapes button svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 .shapes button[aria-pressed="true"] {
   border-color: var(--accent); color: var(--accent); background: var(--panel-2);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+.clip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.clip button {
+  padding: 7px 2px; border: 1px solid var(--rule-2); border-radius: 6px;
+  background: var(--panel-2); cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.clip button:disabled { opacity: .38; cursor: not-allowed; }
+
 .stamp { display: flex; flex-direction: column; gap: 9px; }
 .stamp input[type="text"] {
   width: 100%; padding: 8px 10px; border: 1px solid var(--rule-2); border-radius: 6px;
@@ -272,7 +280,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 6</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 7</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -304,7 +312,9 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
       <div class="group">
         <h2>Shape</h2>
         <div class="shapes" id="shapes">
-          <button data-shape="pencil" aria-pressed="true" title="Pencil (1)">
+          <button data-shape="select" aria-pressed="false" title="Select a box and move it">
+            <svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" stroke-dasharray="0" /></svg>Select</button>
+          <button data-shape="pencil" aria-pressed="true" title="Pencil">
             <svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>Pencil</button>
           <button data-shape="line" aria-pressed="false" title="Line">
             <svg viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg>Line</button>
@@ -317,15 +327,22 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
           <button data-shape="stamp" aria-pressed="false" title="Text or emoji">
             <svg viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></svg>Stamp</button>
         </div>
-        <button class="toggle" id="select" aria-pressed="false">
-          Select &amp; move <span class="state">off</span>
-        </button>
         <button class="toggle" id="filled" aria-pressed="false">
           Fill box &amp; ellipse <span class="state">outline</span>
         </button>
         <button class="toggle" id="mirror" aria-pressed="false">
           Flip horizontally <span class="state">off</span>
         </button>
+      </div>
+
+      <div class="group" id="clip-group" hidden>
+        <h2>Selection</h2>
+        <div class="clip">
+          <button id="btn-copy" disabled>Copy</button>
+          <button id="btn-cut" disabled>Cut</button>
+          <button id="btn-paste" disabled>Paste</button>
+        </div>
+        <p class="note" id="clip-note">Drag a box to pick up whatever is inside it.</p>
       </div>
 
       <div class="group stamp" id="stamp-group" hidden>
@@ -834,7 +851,8 @@ let penPts = [], penSeen = null;
    how far it has been dragged. `cells` is rebuilt from the two, so what is on
    screen is always the real grid -- dropping is just forgetting the selection. */
 let sel = null;
-let selectMode = false, marquee = null, selDrag = null;
+let marquee = null, selDrag = null;
+let clip = null, lastCell = null;   // clipboard, and where to paste
 
 function selBounds() {
   return sel && { r0: sel.r0 + sel.dr, c0: sel.c0 + sel.dc, r1: sel.r1 + sel.dr, c1: sel.c1 + sel.dc };
@@ -871,11 +889,61 @@ function liftSelection(a, b) {
     }
   sel = { r0, c0, r1, c1, base, items, dr: 0, dc: 0 };
   applySel();
+  clipState();
 }
+function clipState() {
+  $("#btn-copy").disabled = !sel || !sel.items.length;
+  $("#btn-cut").disabled = !sel || !sel.items.length;
+  $("#btn-paste").disabled = !clip;
+  const note = $("#clip-note");
+  if (sel) note.textContent = clip
+    ? "Drag it, or copy / cut it. Paste drops a copy under the cursor."
+    : "Drag it to move it. Copy or cut it to reuse it elsewhere.";
+  else note.textContent = clip
+    ? "Drag a box to pick something up, or paste what you took."
+    : "Drag a box to pick up whatever is inside it.";
+}
+
+/** Take the selection's contents, stored relative to the box's own corner. */
+function copySelection() {
+  if (!sel || !sel.items.length) return;
+  clip = {
+    w: sel.c1 - sel.c0 + 1,
+    h: sel.r1 - sel.r0 + 1,
+    items: sel.items.map((it) => ({ dr: it.r - sel.r0, dc: it.c - sel.c0, t: it.t, color: it.color })),
+  };
+  clipState();
+}
+function cutSelection() {
+  copySelection();
+  if (!sel) return;
+  sel.items = [];        // the source was already lifted away, so this is the cut
+  applySel();
+  clipState();
+}
+/** Paste as a fresh floating selection, so it can be nudged before it lands. */
+function pasteClip() {
+  if (!clip) return;
+  dropSelection();
+  const at = lastCell || { r: Math.floor(PLAY_ROWS / 2), c: Math.floor(COLS / 2) };
+  const r0 = at.r - Math.floor(clip.h / 2), c0 = at.c - Math.floor(clip.w / 2);
+  pushUndo();
+  sel = {
+    r0, c0, r1: r0 + clip.h - 1, c1: c0 + clip.w - 1,
+    base: snap(),                       // nothing is removed: a paste only adds
+    items: clip.items.map((it) => ({ r: r0 + it.dr, c: c0 + it.dc, t: it.t, color: it.color })),
+    dr: 0, dc: 0,
+  };
+  selectShape("select");
+  applySel();
+  clipState();
+}
+
 function dropSelection() {
   if (!sel) return;
   sel = null;                                      // `cells` already holds the result
   $("#sel-info").textContent = "";
+  clipState();
   render();
 }
 
@@ -912,7 +980,7 @@ gridCv.addEventListener("pointerdown", (ev) => {
     if (cell.t === "brick" && cell.c) setColour(cell.c);
     return;
   }
-  if (selectMode) {
+  if (shape === "select") {
     if (sel && inSel(p)) selDrag = { from: p, dr0: sel.dr, dc0: sel.dc };
     else { dropSelection(); marquee = { a: p, b: p }; ghost = []; render(); }
     return;
@@ -946,8 +1014,9 @@ gridCv.addEventListener("pointermove", (ev) => {
   const p = cellAt(ev);
   $("#coord").textContent = inGrid(p)
     ? String(p.c).padStart(2, "0") + ", " + String(p.r).padStart(2, "0") : "--, --";
+  if (inGrid(p)) lastCell = p;
 
-  if (selectMode) {
+  if (shape === "select") {
     gridCv.style.cursor = inSel(p) ? "move" : "crosshair";
     if (selDrag) {
       sel.dr = selDrag.dr0 + (p.r - selDrag.from.r);
@@ -990,7 +1059,7 @@ gridCv.addEventListener("pointermove", (ev) => {
 });
 
 addEventListener("pointerup", () => {
-  if (selectMode) {
+  if (shape === "select") {
     if (marquee) {
       const b = { r: Math.max(0, Math.min(PLAY_ROWS - 1, marquee.b.r)),
                   c: Math.max(0, Math.min(COLS - 1, marquee.b.c)) };
@@ -1085,29 +1154,28 @@ for (const e of EMOJI) {
 }
 
 function selectShape(name) {
+  if (name !== "select") dropSelection();     // leaving Select lands what is floating
   shape = name;
-  dropSelection();
+  marquee = null; selDrag = null;
+  gridCv.style.cursor = "crosshair";
   curve = null; ghost = [];
   $("#stamp-note-live").textContent = "";
   $("#shapes").querySelectorAll("button").forEach((x) =>
     x.setAttribute("aria-pressed", String(x.dataset.shape === name)));
   $("#stamp-group").hidden = name !== "stamp";
+  $("#clip-group").hidden = name !== "select";
   $("#filled").hidden = !(name === "rect" || name === "ellipse");
+  $("#mirror").hidden = name === "select";
+  clipState();
   render();
 }
 $("#shapes").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (b) selectShape(b.dataset.shape);
 });
 
-$("#select").addEventListener("click", (e) => {
-  selectMode = !selectMode;
-  if (!selectMode) dropSelection();
-  marquee = null; selDrag = null; ghost = [];
-  e.currentTarget.setAttribute("aria-pressed", String(selectMode));
-  e.currentTarget.querySelector(".state").textContent = selectMode ? "on" : "off";
-  gridCv.style.cursor = "crosshair";
-  render();
-});
+$("#btn-copy").addEventListener("click", copySelection);
+$("#btn-cut").addEventListener("click", cutSelection);
+$("#btn-paste").addEventListener("click", pasteClip);
 
 $("#filled").addEventListener("click", (e) => {
   filled = !filled;
