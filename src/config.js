@@ -91,7 +91,7 @@ export const defaultConfig = {
 
   ball: {
     r: 9, speed: 780, speedMax: 1250, speedGain: 1.005,
-    startCount: 1, maxCount: 6,
+    startCount: 1, maxCount: 4096,   // a ceiling, not a target: runs clear long before it
     // Split the ball that breaks a brick once the remaining fraction drops past each
     // mark. The steady speedGain above does most of the pacing work.
     splitAt: [0.22, 0.10],

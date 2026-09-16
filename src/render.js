@@ -350,35 +350,52 @@ function drawFloor(ctx, cfg) {
   ctx.fillRect(field.x, y - 2, field.w, 3);
 }
 
-/** The closing frame: the field dims and WIN comes up, then the file ends. */
-function drawWinCard(ctx, cfg, state) {
-  if (!state.cleared) return;
-  const k = Math.min(1, (state.t - state.clearedAt) / 0.45);
+/** The closing frame: the field dims and the verdict comes up, then the file ends. */
+function drawEndBanner(ctx, cfg, state) {
+  const done = state.cleared ? { at: state.clearedAt, lines: ['WIN'], win: true }
+             : state.over    ? { at: state.overAt, lines: ['GAME', 'OVER'], win: false }
+             : null;
+  if (!done || done.at == null) return;
+
+  const k = Math.min(1, (state.t - done.at) / 0.45);
   if (k <= 0) return;
   const ease = 1 - Math.pow(1 - k, 3);
   const { width: W, height: H } = cfg;
   const s = cfg.scale ?? 1;
 
-  ctx.fillStyle = `rgba(6,8,16,${(0.66 * ease).toFixed(3)})`;
+  ctx.fillStyle = `rgba(6,8,16,${((done.win ? 0.66 : 0.78) * ease).toFixed(3)})`;
   ctx.fillRect(0, 0, W, H);
 
-  const cell = Math.max(4, Math.round(30 * s * (0.84 + 0.16 * ease)));
+  // Fit the widest line to the frame rather than assuming a size.
+  const units = Math.max(...done.lines.map((l) => l.length * 6 - 1));
+  const cell = Math.max(3, Math.min(Math.round(30 * s), Math.floor((W * 0.8) / (units * 1.3))));
   const gap = Math.max(2, Math.round(cell * 0.3));
-  const h = 7 * (cell + gap) - gap;
+  const lineH = 7 * (cell + gap) - gap;
+  const lead = gap * 7;                      // room between stacked lines
+  const h = done.lines.length * lineH + (done.lines.length - 1) * lead;
+  const colour = done.win ? '#FFFFFF' : '#C8D2EA';
 
   ctx.save();
-  ctx.shadowColor = 'rgba(255,255,255,0.9)';
-  ctx.shadowBlur = 48 * s * ease;
-  pixelText(ctx, ['WIN'], { cx: W / 2, y: (H - h) / 2, cell, gap, color: '#FFFFFF', alpha: ease });
+  ctx.shadowColor = done.win ? 'rgba(255,255,255,0.9)' : 'rgba(200,214,238,0.5)';
+  ctx.shadowBlur = (done.win ? 48 : 26) * s * ease;
+  done.lines.forEach((line, i) => {
+    pixelText(ctx, [line], {
+      cx: W / 2, y: (H - h) / 2 + i * (lineH + lead),
+      cell: cell * (0.84 + 0.16 * ease), gap, color: colour, alpha: ease,
+    });
+  });
   ctx.restore();
 
-  // a palette rule under the word, drawn in as it settles
   const rw = W * 0.30 * ease, ry = (H + h) / 2 + Math.round(34 * s);
-  const colors = PALETTES[cfg.palette] ?? PALETTES.sunset;
-  const lg = ctx.createLinearGradient(W / 2 - rw / 2, 0, W / 2 + rw / 2, 0);
-  colors.forEach((c, i) => lg.addColorStop(i / (colors.length - 1), c));
   ctx.globalAlpha = ease;
-  ctx.fillStyle = lg;
+  if (done.win) {
+    const colors = PALETTES[cfg.palette] ?? PALETTES.sunset;
+    const lg = ctx.createLinearGradient(W / 2 - rw / 2, 0, W / 2 + rw / 2, 0);
+    colors.forEach((c, i) => lg.addColorStop(i / (colors.length - 1), c));
+    ctx.fillStyle = lg;
+  } else {
+    ctx.fillStyle = 'rgba(200,214,238,0.45)';
+  }
   ctx.fillRect(W / 2 - rw / 2, ry, rw, Math.max(2, Math.round(4 * s)));
   ctx.globalAlpha = 1;
 }
@@ -426,6 +443,6 @@ export function draw(ctx, state, fx) {
     ctx.restore();
   }
 
-  drawWinCard(ctx, cfg, state);
+  drawEndBanner(ctx, cfg, state);
   drawVignette(ctx, cfg);
 }

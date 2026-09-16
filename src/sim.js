@@ -37,7 +37,7 @@ export function createState(cfg) {
 
   return {
     cfg, rng, t: 0,
-    over: false, missed: false, cleared: false, clearedAt: null,
+    over: false, missed: false, overAt: null, cleared: false, clearedAt: null,
     destroyed: 0,
     total: bricks.length,          // destructible only; solids never count
     bricks: [...bricks, ...solids],
@@ -461,7 +461,7 @@ function substepBall(state, ball, dt, events) {
 /** Advance the world by dt. Mutates state (fast, still fully deterministic). */
 export function step(state, dt) {
   const events = [];
-  if (state.over) return events;
+  if (state.over) { state.t += dt; return events; }   // clock runs on, so the card can play
   movePaddle(state, dt);
   stepGroups(state, dt);
   const subs = 8;
@@ -470,7 +470,7 @@ export function step(state, dt) {
 
   if (state.balls.some((b) => b.dead)) {
     state.balls = state.balls.filter((b) => !b.dead);
-    if (!state.balls.length) { state.over = true; state.missed = true; }
+    if (!state.balls.length) { state.over = true; state.missed = true; state.overAt = state.t; }
   }
 
   updateDrops(state, dt, events);
@@ -507,6 +507,6 @@ export function* runFrames(state) {
     const dt = frameDt / slowFactor(state);
     const events = step(state, dt);
     yield { frame: f + 1, events, dt };
-    if (state.cleared && ++outro >= cfg.outro * cfg.fps) return;
+    if ((state.cleared || state.over) && ++outro >= cfg.outro * cfg.fps) return;
   }
 }
