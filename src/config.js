@@ -76,9 +76,17 @@ export const defaultConfig = {
     maxActive: 5,        // cap what can be on screen at once
     speed: 300,          // fall speed, px/s
     w: 92, h: 40,
-    pierceDuration: 3.0, // seconds the no-bounce mode lasts
-    weights: { split: 1, pierce: 1 },
-    colors: { split: '#4EE6C1', pierce: '#FF7ACF' },
+    // How long each timed effect lasts, in seconds.
+    duration: { pierce: 3.0, wide: 6.5, freeze: 4.5, wrap: 5.0 },
+    weights: { split: 1, triple: 0.7, pierce: 1, wide: 0.8, freeze: 0.7, wrap: 0.6 },
+    colors: {
+      split:  '#4EE6C1',   // one ball becomes two
+      triple: '#7CE0FF',   // one ball becomes three
+      pierce: '#FF7ACF',   // bricks do not deflect
+      wide:   '#FFB13D',   // a longer paddle
+      freeze: '#8B7BF5',   // moving pieces stop
+      wrap:   '#8BE07A',   // leave one edge, arrive at the opposite one
+    },
   },
 
   ball: {
@@ -88,5 +96,5 @@ export const defaultConfig = {
     // mark. The steady speedGain above does most of the pacing work.
     splitAt: [0.22, 0.10],
   },
-  paddle: { cols: 5, h: 18, speed: 2800, sloppiness: 0.9 },
+  paddle: { cols: 5, h: 18, speed: 2800, sloppiness: 0.9, wideFactor: 1.9 },
 };

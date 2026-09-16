@@ -1,5 +1,5 @@
 import { textGrid } from './font.js';
-import { piercing } from './sim.js';
+import { piercing, frozen, wrapping, activeEffects } from './sim.js';
 import { PALETTES } from './config.js';
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -80,13 +80,26 @@ function drawHud(ctx, cfg, state, fx) {
   ctx.fillStyle = lg;
   ctx.fillRect(0, by, W * pct, barH);
 
-  if (piercing(state)) {
-    const left = Math.max(0, (state.pierceUntil - state.t) / cfg.drops.pierceDuration);
-    const hw = W * 0.3, hx = (W - hw) / 2, hy = by - barH - Math.round(5 * k);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(hx, hy, hw, barH);
-    ctx.fillStyle = cfg.drops.colors.pierce;
-    ctx.fillRect(hx, hy, hw * left, barH);
+  // One pill per running effect, sitting clear of the progress bar.
+  const running = activeEffects(state);
+  if (running.length) {
+    const eh = Math.max(6, Math.round(11 * k));
+    const gap = Math.round(10 * k);
+    const hw = Math.min(W * 0.24, (W * 0.84 - gap * (running.length - 1)) / running.length);
+    const hy = by - eh - Math.round(16 * k);
+    let hx = (W - (hw * running.length + gap * (running.length - 1))) / 2;
+    for (const e of running) {
+      ctx.fillStyle = 'rgba(255,255,255,0.13)';
+      roundRect(ctx, hx, hy, hw, eh, eh / 2); ctx.fill();
+      const col = cfg.drops.colors[e.kind] ?? '#FFFFFF';
+      ctx.save();
+      roundRect(ctx, hx, hy, hw, eh, eh / 2); ctx.clip();
+      ctx.shadowColor = col; ctx.shadowBlur = 12 * k;
+      ctx.fillStyle = col;
+      ctx.fillRect(hx, hy, hw * e.left, eh);
+      ctx.restore();
+      hx += hw + gap;
+    }
   }
 
   if (cfg.watermark)
@@ -140,6 +153,42 @@ function drawSolid(ctx, b, scale) {
   drawAxisMark(ctx, b, 'rgba(210,226,255,0.72)');
 }
 
+/** A cold wash over anything that would be moving, while freeze is running. */
+function frostOver(ctx, state) {
+  if (!frozen(state)) return;
+  const col = state.cfg.drops.colors.freeze;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.22;
+  for (const b of state.bricks) {
+    if (!b.alive || !b.axis) continue;
+    ctx.fillStyle = col;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+  }
+  ctx.restore();
+}
+
+/** While wrapping, the field edges glow: they are doorways, not walls. */
+function drawWrapEdges(ctx, cfg, state) {
+  if (!wrapping(state)) return;
+  const { field } = cfg, col = cfg.drops.colors.wrap;
+  const band = Math.max(5, 11 * (cfg.scale ?? 1));
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const strip = (x, y, w, h, x2, y2) => {
+    const g = ctx.createLinearGradient(x, y, x2, y2);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.38;
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+  };
+  strip(field.x, field.y, band, field.h, field.x + band, field.y);
+  strip(field.x + field.w - band, field.y, band, field.h, field.x + field.w - band * 2, field.y);
+  strip(field.x, field.y, field.w, band, field.x, field.y + band);
+  strip(field.x, field.y + field.h - band, field.w, band, field.x, field.y + field.h - band * 2);
+  ctx.restore();
+}
+
 function drawBricks(ctx, state) {
   const scale = state.cfg.scale ?? 1;
   for (const b of state.bricks) {
@@ -165,6 +214,38 @@ const DROP_ICON = {
     const r = d.h * 0.22;
     ctx.beginPath(); ctx.arc(d.x - r * 1.6, d.y, r, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(d.x + r * 1.6, d.y, r, 0, Math.PI * 2); ctx.fill();
+  },
+  triple(ctx, d) {
+    const r = d.h * 0.18;
+    for (const off of [-2.6, 0, 2.6]) {
+      ctx.beginPath(); ctx.arc(d.x + off * r, d.y, r, 0, Math.PI * 2); ctx.fill();
+    }
+  },
+  wide(ctx, d) {                      // a bar reaching for both ends
+    const w = d.w * 0.30, t = d.h * 0.16;
+    ctx.fillRect(d.x - w, d.y - t / 2, w * 2, t);
+    for (const sign of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(d.x + sign * (w + t * 1.5), d.y);
+      ctx.lineTo(d.x + sign * w, d.y - t * 1.6);
+      ctx.lineTo(d.x + sign * w, d.y + t * 1.6);
+      ctx.closePath(); ctx.fill();
+    }
+  },
+  freeze(ctx, d) {                    // a pause: everything stands still
+    const w = d.h * 0.13, h = d.h * 0.46;
+    ctx.fillRect(d.x - w * 2.1, d.y - h / 2, w, h);
+    ctx.fillRect(d.x + w * 1.1, d.y - h / 2, w, h);
+  },
+  wrap(ctx, d) {                      // out one side, in at the other
+    const w = d.h * 0.24, h = d.h * 0.2;
+    for (const cx of [d.x - d.w * 0.16, d.x + d.w * 0.16]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + w, d.y);
+      ctx.lineTo(cx - w * 0.6, d.y - h);
+      ctx.lineTo(cx - w * 0.6, d.y + h);
+      ctx.closePath(); ctx.fill();
+    }
   },
   pierce(ctx, d) {
     const w = d.h * 0.34, h = d.h * 0.19;
@@ -343,6 +424,8 @@ export function draw(ctx, state, fx) {
   drawTrails(ctx, state, fx);
   drawDrops(ctx, state);
   drawParticles(ctx, fx);
+  frostOver(ctx, state);
+  drawWrapEdges(ctx, cfg, state);
   drawPaddle(ctx, state);
   drawBalls(ctx, state);
   drawEndCard(ctx, state);

@@ -42,7 +42,9 @@ export function createState(cfg) {
     total: bricks.length,          // destructible only; solids never count
     bricks: [...bricks, ...solids],
     drops: [],
-    pierceUntil: -1,
+    // Each timed effect is just a deadline on the clock.
+    pierceUntil: -1, wideUntil: -1, freezeUntil: -1, wrapUntil: -1,
+    paddleBaseW: paddleW,
     splitsLeft: [...cfg.ball.splitAt],
     balls, layout, gaps, groups, mapRows,
     solidCells: new Set(solids.map((b) => b.row * 4096 + b.col)),
@@ -101,7 +103,7 @@ function placeGroup(state, g) {
 }
 
 function stepGroups(state, dt) {
-  if (!state.groups.length) return;
+  if (!state.groups.length || frozen(state)) return;
   const occ = occupancy(state);
   const { cell } = state.cfg;
   for (const g of state.groups) {
@@ -208,6 +210,7 @@ function aimOffset(state, landing) {
 
 function movePaddle(state, dt) {
   const { cfg, paddle } = state, { field } = cfg;
+  paddle.w = state.paddleBaseW * (widened(state) ? cfg.paddle.wideFactor : 1);
   const half = paddle.w / 2;
 
   // Commit to whichever ball lands soonest; the rest are the floor's problem.
@@ -261,10 +264,13 @@ function reflectOffPaddle(state, ball, events) {
   events.push({ type: 'paddle', x: ball.x, y: paddle.y, rel });
 }
 
-function splitBall(state, ball, events) {
-  const a = Math.atan2(ball.vy, ball.vx), spread = 0.5;
-  ball.vx = Math.cos(a - spread) * ball.speed;
-  ball.vy = Math.sin(a - spread) * ball.speed;
+/** Fan a new ball off an existing one; `nth` widens the fan for a triple. */
+function splitBall(state, ball, events, nth = 0) {
+  const a = Math.atan2(ball.vy, ball.vx), spread = 0.5 + nth * 0.45;
+  if (nth === 0) {
+    ball.vx = Math.cos(a - spread) * ball.speed;
+    ball.vy = Math.sin(a - spread) * ball.speed;
+  }
   state.balls.push(makeBall(state.cfg, ball.x, ball.y, a + spread, ball.speed));
   events.push({ type: 'split', x: ball.x, y: ball.y });
 }
@@ -278,7 +284,7 @@ function maybeSplit(state, ball, events) {
   splitBall(state, ball, events);
 }
 
-const DROP_KINDS = ['split', 'pierce'];
+const DROP_KINDS = ['split', 'triple', 'pierce', 'wide', 'freeze', 'wrap'];
 
 function pickKind(cfg, rng) {
   const w = cfg.drops.weights;
@@ -290,16 +296,23 @@ function pickKind(cfg, rng) {
 }
 
 function applyDrop(state, d, events) {
+  const { cfg } = state;
+  const until = (k) => state.t + cfg.drops.duration[k];
   events.push({ type: 'pickup', kind: d.kind, x: d.x, y: d.y });
-  if (d.kind === 'split') {
-    // Every ball in play splits, up to the cap.
+
+  if (d.kind === 'split' || d.kind === 'triple') {
+    // Every ball in play divides, up to the cap.
+    const extra = d.kind === 'triple' ? 2 : 1;
     for (const b of [...state.balls]) {
-      if (state.balls.length >= state.cfg.ball.maxCount) break;
-      splitBall(state, b, events);
+      for (let i = 0; i < extra; i++) {
+        if (state.balls.length >= cfg.ball.maxCount) break;
+        splitBall(state, b, events, i);
+      }
     }
-  } else if (d.kind === 'pierce') {
-    state.pierceUntil = state.t + state.cfg.drops.pierceDuration;
-  }
+  } else if (d.kind === 'pierce') state.pierceUntil = until('pierce');
+  else if (d.kind === 'wide')     state.wideUntil   = until('wide');
+  else if (d.kind === 'freeze')   state.freezeUntil = until('freeze');
+  else if (d.kind === 'wrap')     state.wrapUntil   = until('wrap');
 }
 
 function updateDrops(state, dt, events) {
@@ -317,9 +330,21 @@ function updateDrops(state, dt, events) {
   state.drops = keep;
 }
 
-/** True while the no-bounce power-up is active. */
-export function piercing(state) {
-  return state.t < state.pierceUntil;
+export const piercing = (state) => state.t < state.pierceUntil;
+export const widened  = (state) => state.t < state.wideUntil;
+export const frozen   = (state) => state.t < state.freezeUntil;
+export const wrapping = (state) => state.t < state.wrapUntil;
+
+/** Effects that are running, with how much of each is left, for the HUD. */
+export function activeEffects(state) {
+  const d = state.cfg.drops.duration;
+  return [
+    ['pierce', state.pierceUntil, d.pierce],
+    ['wide', state.wideUntil, d.wide],
+    ['freeze', state.freezeUntil, d.freeze],
+    ['wrap', state.wrapUntil, d.wrap],
+  ].filter(([, until]) => state.t < until)
+   .map(([kind, until, span]) => ({ kind, left: (until - state.t) / span }));
 }
 
 function hitBrick(state, ball, brick, events) {
@@ -376,9 +401,18 @@ function substepBall(state, ball, dt, events) {
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
 
-  if (ball.x - ball.r < field.x)           { ball.x = field.x + ball.r; ball.vx = Math.abs(ball.vx); events.push({ type: 'wall', x: ball.x, y: ball.y }); }
-  if (ball.x + ball.r > field.x + field.w) { ball.x = field.x + field.w - ball.r; ball.vx = -Math.abs(ball.vx); events.push({ type: 'wall', x: ball.x, y: ball.y }); }
-  if (ball.y - ball.r < field.y)           { ball.y = field.y + ball.r; ball.vy = Math.abs(ball.vy); events.push({ type: 'wall', x: ball.x, y: ball.y }); }
+  // While wrapping, an edge is a doorway to the opposite edge: the ball keeps
+  // its heading and reappears on the far side. Measured on the centre, so it
+  // reads as leaving one wall and arriving at the other.
+  if (wrapping(state)) {
+    if (ball.x < field.x)                  { ball.x += field.w; events.push({ type: 'wrap', x: ball.x, y: ball.y }); }
+    else if (ball.x > field.x + field.w)   { ball.x -= field.w; events.push({ type: 'wrap', x: ball.x, y: ball.y }); }
+    if (ball.y < field.y)                  { ball.y += field.h; events.push({ type: 'wrap', x: ball.x, y: ball.y }); }
+  } else {
+    if (ball.x - ball.r < field.x)           { ball.x = field.x + ball.r; ball.vx = Math.abs(ball.vx); events.push({ type: 'wall', x: ball.x, y: ball.y }); }
+    if (ball.x + ball.r > field.x + field.w) { ball.x = field.x + field.w - ball.r; ball.vx = -Math.abs(ball.vx); events.push({ type: 'wall', x: ball.x, y: ball.y }); }
+    if (ball.y - ball.r < field.y)           { ball.y = field.y + ball.r; ball.vy = Math.abs(ball.vy); events.push({ type: 'wall', x: ball.x, y: ball.y }); }
+  }
 
   const p = state.paddle;
   if (ball.vy > 0 && ball.y + ball.r >= p.y && ball.y - ball.r <= p.y + p.h &&
@@ -387,7 +421,11 @@ function substepBall(state, ball, dt, events) {
   }
 
   const floor = field.y + field.h;
-  if (ball.y + ball.r > floor) {
+  if (wrapping(state)) {
+    // Past the bottom it comes back in at the top, so nothing is lost while
+    // this is running.
+    if (ball.y > floor) { ball.y -= field.h; events.push({ type: 'wrap', x: ball.x, y: ball.y }); }
+  } else if (ball.y + ball.r > floor) {
     if (!cfg.floorBounce) {
       // Missed. The ball is gone; the run continues on whatever is still up.
       ball.dead = true;
