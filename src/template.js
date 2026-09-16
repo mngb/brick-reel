@@ -74,9 +74,9 @@ function drawKeyStrip(ctx, cfg, W, top, h) {
     ['#FFFFFF', 'EMPTY', 'WHITE'],
     ['#000000', 'WALL', 'BLACK'],
     ['#FF4E6B', 'BRICK', 'ANY COLOUR'],
-    ['#FF0000', 'CORNER MARK', 'MOVES LEFT-RIGHT'],
-    ['#00FF00', 'CORNER MARK', 'MOVES UP-DOWN'],
-    ['#FFFFFF', 'NO MARK', 'STAYS PUT'],
+    ['#FF0000', 'MARK LR', 'SIDEWAYS'],
+    ['#00FF00', 'MARK UD', 'UP-DOWN'],
+    ['#FFFFFF', 'NO MARK', 'STATIC'],
   ];
 
   ctx.fillStyle = '#0E1222';
@@ -89,7 +89,7 @@ function drawKeyStrip(ctx, cfg, W, top, h) {
 
   left('MAP KEY', 14, top + 12, 3, 1, '#FFFFFF', 0.92);
 
-  const sw = 20, rowH = 28, noteX = 158;
+  const sw = 20, rowH = 28, noteX = 134;
   const colX = [14, Math.round(W / 2) + 6];
   const y0 = top + 44;
 
@@ -108,8 +108,7 @@ function drawKeyStrip(ctx, cfg, W, top, h) {
 
   // The catch-all gets its own full-width line; its note is too long for a column.
   const yLast = y0 + 3 * rowH + 6;
-  left('A MARK IN A CELL CORNER SETS DIRECTION - THE CELL KEEPS ITS COLOUR',
-       colX[0], yLast + 3, 2, 1, '#9FB0D8', 0.85);
+  left('MARK IN A CORNER SETS DIRECTION', colX[0], yLast + 3, 2, 1, '#9FB0D8', 0.85);
 
   left('KEY STRIP - NOT PART OF THE MAP', 14, top + h - 28, 2, 1, '#7C8BB8', 0.9);
 }

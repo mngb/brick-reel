@@ -280,7 +280,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 7</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 8</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -763,17 +763,19 @@ function drawGrid(preview) {
 /* ---------- the key strip, byte-for-byte the CLI layout ---------- */
 function drawStrip(ctx, W, top, h) {
   const pairs = [
-    ["#FFFFFF", "EMPTY", "WHITE"], ["#000000", "WALL", "BLACK"],
+    ["#FFFFFF", "EMPTY", "WHITE"],
+    ["#000000", "WALL", "BLACK"],
     ["#FF4E6B", "BRICK", "ANY COLOUR"],
-    ["#FF0000", "CORNER MARK", "MOVES LEFT-RIGHT"],
-    ["#00FF00", "CORNER MARK", "MOVES UP-DOWN"],
-    ["#FFFFFF", "NO MARK", "STAYS PUT"],
+    ["#FF0000", "MARK LR", "SIDEWAYS"],
+    ["#00FF00", "MARK UD", "UP-DOWN"],
+    ["#FFFFFF", "NO MARK", "STATIC"],
   ];
+
   ctx.fillStyle = "#0E1222"; ctx.fillRect(0, top, W, h);
   ctx.fillStyle = "#FF4E6B"; ctx.fillRect(0, top, W, 3);
 
   pixText(ctx, "MAP KEY", 14, top + 12, 3, 1, "#FFFFFF", .92);
-  const sw = 20, rowH = 28, noteX = 158, colX = [14, Math.round(W / 2) + 6], y0 = top + 44;
+  const sw = 20, rowH = 28, noteX = 134, colX = [14, Math.round(W / 2) + 6], y0 = top + 44;
   const entry = (hex, label, note, x, y) => {
     ctx.fillStyle = hex; ctx.fillRect(x, y, sw, sw);
     ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1;
@@ -783,8 +785,7 @@ function drawStrip(ctx, W, top, h) {
   };
   pairs.forEach(([hex, l, n], i) => entry(hex, l, n, colX[i < 3 ? 0 : 1], y0 + (i % 3) * rowH));
   const yLast = y0 + 3 * rowH + 6;
-  pixText(ctx, "A MARK IN A CELL CORNER SETS DIRECTION - THE CELL KEEPS ITS COLOUR",
-          colX[0], yLast + 3, 2, 1, "#9FB0D8", .85);
+  pixText(ctx, "MARK IN A CORNER SETS DIRECTION", colX[0], yLast + 3, 2, 1, "#9FB0D8", .85);
   pixText(ctx, "KEY STRIP - NOT PART OF THE MAP", 14, top + h - 28, 2, 1, "#7C8BB8", .9);
 }
 
