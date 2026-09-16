@@ -60,7 +60,9 @@ export const defaultConfig = {
   brickGap: 4,       // px inset inside each cell; a brick is (cell - brickGap) square
 
   shake: 0,            // screen shake on impact; 0 = off, 1 = the original amount
-  floorBounce: true,   // several balls, one paddle -- the floor catches the rest
+  floorBounce: false,  // true: the floor is a wall and nothing is ever lost.
+                       // false: a ball the paddle misses is gone, and the run
+                       // ends when the last one goes.
   floorScatter: 0.5,   // radians of angle jitter on a floor bounce, to break cycles
   showChrome: false, // field outline + floor line; off, you add your own border
   wallColor: '#3A4478', // indestructible walls
@@ -70,8 +72,8 @@ export const defaultConfig = {
 
   drops: {
     enabled: true,
-    chance: 0.04,        // per destroyed brick (the vault has ~340, so keep this low)
-    maxActive: 4,        // cap what can be on screen at once
+    chance: 0.08,        // per destroyed brick
+    maxActive: 5,        // cap what can be on screen at once
     speed: 300,          // fall speed, px/s
     w: 92, h: 40,
     pierceDuration: 3.0, // seconds the no-bounce mode lasts
@@ -81,7 +83,7 @@ export const defaultConfig = {
 
   ball: {
     r: 9, speed: 780, speedMax: 1250, speedGain: 1.005,
-    startCount: 1, maxCount: 5,
+    startCount: 1, maxCount: 6,
     // Split the ball that breaks a brick once the remaining fraction drops past each
     // mark. The steady speedGain above does most of the pacing work.
     splitAt: [0.22, 0.10],

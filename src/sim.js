@@ -236,6 +236,8 @@ function movePaddle(state, dt) {
   }
 
   // Detour for a falling pickup only when no ball needs the paddle sooner.
+  // Widening this margin when only one ball is left measures WORSE: skipping
+  // pickups means skipping splits, so the run stays on one ball and loses it.
   let drop = null;
   for (const d of state.drops) {
     const tti = (paddle.y - d.y) / cfg.drops.speed;
@@ -384,10 +386,14 @@ function substepBall(state, ball, dt, events) {
     reflectOffPaddle(state, ball, events);
   }
 
-  // With several balls in play one paddle cannot cover them all. The floor is a
-  // wall so a run can never end early -- this is a video, not a game.
   const floor = field.y + field.h;
   if (ball.y + ball.r > floor) {
+    if (!cfg.floorBounce) {
+      // Missed. The ball is gone; the run continues on whatever is still up.
+      ball.dead = true;
+      events.push({ type: 'lost', x: ball.x, y: floor });
+      return;
+    }
     if (cfg.floorBounce) {
       ball.y = floor - ball.r; ball.vy = -Math.abs(ball.vy);
       // Nudge the angle. The floor is not a real surface anyway, and a perfectly
@@ -397,7 +403,7 @@ function substepBall(state, ball, dt, events) {
       ball.vx = Math.cos(a) * ball.speed;
       ball.vy = -Math.abs(Math.sin(a) * ball.speed);
       events.push({ type: 'floor', x: ball.x, y: floor });
-    } else { state.over = true; state.missed = true; }
+    }
   }
 
   for (const b of state.bricks) {
@@ -417,7 +423,13 @@ export function step(state, dt) {
   stepGroups(state, dt);
   const subs = 8;
   for (let i = 0; i < subs; i++)
-    for (const ball of state.balls) substepBall(state, ball, dt / subs, events);
+    for (const ball of state.balls) if (!ball.dead) substepBall(state, ball, dt / subs, events);
+
+  if (state.balls.some((b) => b.dead)) {
+    state.balls = state.balls.filter((b) => !b.dead);
+    if (!state.balls.length) { state.over = true; state.missed = true; }
+  }
+
   updateDrops(state, dt, events);
   state.t += dt;
   return events;

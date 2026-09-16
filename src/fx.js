@@ -46,6 +46,9 @@ export function updateFx(fx, state, events, dt) {
     } else if (e.type === 'clear') {
       burst(fx, e.x, e.y, '#FFFFFF', 90, 900, S);
       fx.shake = 24 * k; fx.flash = 1; fx.clearGlow = 1;
+    } else if (e.type === 'lost') {
+      // A dim fizzle downward, so a miss reads as a loss and not as a hit.
+      burst(fx, e.x, e.y, '#6E7BA8', 14, 210, S);
     } else if (e.type === 'wall' || e.type === 'floor') {
       bump(1.1, 14);
     }
