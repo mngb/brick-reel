@@ -258,7 +258,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 13</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 14</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -641,9 +641,7 @@ function drawStrip(ctx, W, top, h) {
     if (note) pixText(ctx, note, x + sw + 8 + noteX, y + 3, 2, 1, "#9FB0D8", .85);
   };
   pairs.forEach(([hex, l, n], i) => entry(hex, l, n, colX[i < 3 ? 0 : 1], y0 + (i % 3) * rowH));
-  const yLast = y0 + 3 * rowH + 6;
-  pixText(ctx, "MARK IN A CORNER SETS DIRECTION", colX[0], yLast + 3, 2, 1, "#9FB0D8", .85);
-  pixText(ctx, "KEY STRIP - NOT PART OF THE MAP", 14, top + h - 28, 2, 1, "#7C8BB8", .9);
+
 }
 
 /* ---------- what the simulator will see ---------- */

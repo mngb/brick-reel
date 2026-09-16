@@ -107,8 +107,5 @@ function drawKeyStrip(ctx, cfg, W, top, h) {
     entry(hex, label, note, colX[i < 3 ? 0 : 1], y0 + (i % 3) * rowH));
 
   // The catch-all gets its own full-width line; its note is too long for a column.
-  const yLast = y0 + 3 * rowH + 6;
-  left('MARK IN A CORNER SETS DIRECTION', colX[0], yLast + 3, 2, 1, '#9FB0D8', 0.85);
 
-  left('KEY STRIP - NOT PART OF THE MAP', 14, top + h - 28, 2, 1, '#7C8BB8', 0.9);
 }
