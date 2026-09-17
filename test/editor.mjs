@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import { Canvas } from 'skia-canvas';
 
-const html = fs.readFileSync('/home/pk/Work/x/index.html', 'utf8');
+const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
 
 // --- minimal DOM good enough to run the editor ---
