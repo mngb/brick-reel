@@ -8,6 +8,8 @@ import { draw } from './render.js';
 import { openEncoder } from './encode.js';
 import { loadMapGrid, KEYS } from './imagemap.js';
 import { writeTemplate } from './template.js';
+import { randomMap } from './randommap.js';
+import { mulberry32 } from './sim.js';
 
 function parseArgs(argv) {
   const a = {};
@@ -147,7 +149,17 @@ function levelToGrid(c) {
   return grid;
 }
 
-if (a.template) {
+if (a['random-map']) {
+  const out = a['random-map'] === true ? 'out/random.png' : a['random-map'];
+  const { grid, stats } = randomMap(cfg, mulberry32(cfg.seed));
+  const info = writeTemplate(cfg, out, { fill: grid });
+  const flat = grid.flat();
+  const n = (f) => flat.filter(f).length;
+  console.log(`  ${info.W} x ${info.H} -> ${out}   (seed ${cfg.seed})`);
+  console.log(`  bricks ${n((x) => x.kind === 'brick')}  walls ${n((x) => x.kind === 'obstacle')}  empty ${n((x) => x.kind === 'empty')}`);
+  console.log(`  moving ${n((x) => x.axis)}  |  carved ${stats.carved} cell(s) in ${stats.passes} pass(es) to keep every brick reachable`);
+  if (stats.stranded) console.log(`  WARNING: ${stats.stranded} brick(s) still unreachable`);
+} else if (a.template) {
   const out = a.template === true ? 'out/template.png' : a.template;
   const example = out.replace(/\.png$/i, '') + '-example.png';
   const blank = writeTemplate(cfg, out);
