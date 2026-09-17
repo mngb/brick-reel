@@ -89,6 +89,26 @@ function drawAxisMark(ctx, b, color) {
   if (!b.axis) return;
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
   const a = Math.min(b.w, b.h) * 0.19;      // arrow half-height
+
+  if (b.axis === 'r') {                     // an open ring with a beak: it turns
+    const r = Math.min(b.w, b.h) * 0.30;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, a * 0.7);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI * 0.35, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx + r * 1.5, cy - r * 0.25);
+    ctx.lineTo(cx + r * 0.5, cy - r * 0.85);
+    ctx.lineTo(cx + r * 0.45, cy + r * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   const reach = (b.axis === 'h' ? b.w : b.h) * 0.40;
   ctx.save();
   ctx.fillStyle = color;

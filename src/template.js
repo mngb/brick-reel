@@ -32,7 +32,7 @@ export function writeTemplate(cfg, out, { cellPx = 20, fill = null } = {}) {
         ctx.fillStyle = cell.kind === 'obstacle' ? '#000000' : cell.color;
         ctx.fillRect(c * cellPx, r * cellPx, cellPx, cellPx);
         if (cell.axis) {
-          ctx.fillStyle = cell.axis === 'h' ? '#FF0000' : '#00FF00';
+          ctx.fillStyle = cell.axis === 'h' ? '#FF0000' : cell.axis === 'v' ? '#00FF00' : '#0000FF';
           ctx.fillRect(c * cellPx, r * cellPx, cellPx * MARK_SIZE, cellPx * MARK_SIZE);
         }
       }

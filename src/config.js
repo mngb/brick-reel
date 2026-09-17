@@ -66,7 +66,8 @@ export const defaultConfig = {
   floorScatter: 0.5,   // radians of angle jitter on a floor bounce, to break cycles
   showChrome: false, // field outline + floor line; off, you add your own border
   wallColor: '#3A4478', // indestructible walls
-  moveSpeed: 90,       // px/s for moving groups (3 cells per second at cell 30)
+  moveSpeed: 90,       // px/s for sliding groups (3 cells per second at cell 30)
+  spinSpeed: 1.25,     // rad/s for turning groups (a quarter turn takes ~1.25s)
 
   obstacles: { enabled: false, color: '#3A4478' }, // the extra mid-field pattern
 

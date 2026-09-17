@@ -180,7 +180,18 @@ function imageLevel(cfg, rng) {
         if (n && n.axis === piece.axis && !seen.has(nk)) { seen.add(nk); stack.push(nk); }
       }
     }
-    const group = { axis: piece.axis, dir: rng() < 0.5 ? -1 : 1, off: 0, members };
+    const group = { axis: piece.axis, dir: rng() < 0.5 ? -1 : 1, off: 0, angle: 0, members };
+    if (piece.axis === 'r') {
+      // Turn about the group's own centre. A quarter turn keeps every member on
+      // a whole cell as long as both pivot coordinates share a fractional part
+      // (both whole, or both on a half); when the bounding box has one even and
+      // one odd side they do not, so the whole one is nudged onto a half.
+      const rs = members.map((m) => m.row), cs = members.map((m) => m.col);
+      let pr = (Math.min(...rs) + Math.max(...rs)) / 2;
+      let pc = (Math.min(...cs) + Math.max(...cs)) / 2;
+      if ((pr % 1) !== (pc % 1)) { if (pr % 1 === 0) pr += 0.5; else pc += 0.5; }
+      group.pr = pr; group.pc = pc;
+    }
     for (const m of members) m.group = group;
     groups.push(group);
   }
