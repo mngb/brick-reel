@@ -65,6 +65,9 @@ export const defaultConfig = {
                        // ends when the last one goes.
   floorScatter: 0.5,   // radians of angle jitter on a floor bounce, to break cycles
   showChrome: false, // field outline + floor line; off, you add your own border
+  // 'auto': the renderer picks the brick colours (a hue flow that changes with
+  // the seed). 'painted': keep whatever the map was painted in.
+  brickColour: 'auto',
   wallColor: '#3A4478', // indestructible walls
   moveSpeed: 90,       // px/s for sliding groups (3 cells per second at cell 30)
   spinSpeed: 1.25,     // rad/s for turning groups (a quarter turn takes ~1.25s)

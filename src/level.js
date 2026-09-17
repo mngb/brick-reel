@@ -1,6 +1,43 @@
 import { textGrid } from './font.js';
 import { PALETTES } from './config.js';
 
+function hsl(h, s, l) {
+  h = ((h % 360) + 360) % 360; s /= 100; l /= 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  const hex = (v) => Math.round(v * 255).toString(16).padStart(2, '0');
+  return ('#' + hex(f(0)) + hex(f(8)) + hex(f(4))).toUpperCase();
+}
+
+/**
+ * Colours chosen by the program rather than taken from the map, so a level
+ * painted in one flat colour does not render as one flat colour.
+ *
+ * Hue flows across the field along an angle the seed picks, with a slow wave
+ * over it and a small per-cell wobble; saturation and lightness drift on their
+ * own periods. The result reads as one field with a direction to it instead of
+ * either stripes or noise, and every seed gets a different scheme.
+ */
+export function makePalette(rng) {
+  const base = rng() * 360;
+  const tilt = rng() * Math.PI * 2;
+  const flow = 2.4 + rng() * 4.2;        // degrees of hue per cell along the tilt
+  const span = 26 + rng() * 34;          // how far the slow wave swings the hue
+  const wavR = 0.13 + rng() * 0.16, wavC = 0.09 + rng() * 0.14;
+  const satB = 60 + rng() * 14, litB = 56 + rng() * 8;
+
+  return (r, c) => {
+    const along = c * Math.cos(tilt) + r * Math.sin(tilt);
+    const wave = Math.sin(r * wavR + c * wavC);
+    const jitter = Math.sin(r * 12.9898 + c * 78.233) * 6;
+    const h = base + along * flow + wave * span + jitter;
+    const s = satB + 12 * Math.sin(r * 0.31 - c * 0.24);
+    const l = litB + 7 * Math.cos(r * 0.22 + c * 0.37);
+    return hsl(h, Math.max(38, Math.min(92, s)), Math.max(44, Math.min(72, l)));
+  };
+}
+
 /** Subdivide each glyph pixel into d x d bricks: same letterforms, d^2 the bricks. */
 function densify(grid, d) {
   if (d <= 1) return grid;
@@ -142,6 +179,7 @@ function imageLevel(cfg, rng) {
   const g = cfg.mapGrid;
   const rows = g.length;
   const palette = PALETTES[cfg.palette] ?? PALETTES.sunset;
+  const auto = cfg.brickColour !== 'painted' ? makePalette(rng) : null;
   const bricks = [], solids = [];
   const byCell = new Map();                 // row*4096+col -> the piece in that cell
   const at = (r, c) => (r < 0 || c < 0 || r >= rows || c >= cfg.cols ? null : g[r][c].kind);
@@ -153,7 +191,9 @@ function imageLevel(cfg, rng) {
       const solid = cell.kind === 'obstacle';
       // A moving brick has no painted colour of its own (its key colour carried
       // the direction), so it takes the palette band for its row.
-      const color = solid ? cfg.wallColor : (cell.color ?? palette[r % palette.length]);
+      const color = solid ? cfg.wallColor
+                  : auto ? auto(r, c)
+                  : (cell.color ?? palette[r % palette.length]);
       const piece = cellBrick(cfg, r, c, { solid, color, axis: cell.axis ?? null });
       (solid ? solids : bricks).push(piece);
       byCell.set(r * 4096 + c, piece);
