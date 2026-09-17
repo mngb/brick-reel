@@ -69,8 +69,7 @@ export const defaultConfig = {
   // the seed). 'painted': keep whatever the map was painted in.
   brickColour: 'auto',
   wallColor: '#3A4478', // indestructible walls
-  moveSpeed: 90,       // px/s for sliding groups (3 cells per second at cell 30)
-  spinSpeed: 1.25,     // rad/s for turning groups (a quarter turn takes ~1.25s)
+  moveSpeed: 90,       // px/s for moving groups (3 cells per second at cell 30)
 
   obstacles: { enabled: false, color: '#3A4478' }, // the extra mid-field pattern
 

@@ -29,7 +29,6 @@ const KEY_RADIUS = 50;
 const MARKS = [
   { rgb: [0xFF, 0x00, 0x00], axis: 'h' },
   { rgb: [0x00, 0xFF, 0x00], axis: 'v' },
-  { rgb: [0x00, 0x00, 0xFF], axis: 'r' },   // turns in place, a quarter at a time
 ];
 export const MARK_INSET = 0.12;   // where in the cell the mark is sampled
 export const MARK_SIZE = 0.3;     // and how much of the cell it covers

@@ -79,26 +79,6 @@ function occupancy(state) {
   return m;
 }
 
-/** Where a member lands after one quarter turn in direction `dir`. */
-function turned(g, m, dir) {
-  const dr = m.row - g.pr, dc = m.col - g.pc;
-  return dir > 0
-    ? { row: g.pr + dc, col: g.pc - dr }    // clockwise
-    : { row: g.pr - dc, col: g.pc + dr };
-}
-
-function canTurn(state, occ, g, dir) {
-  const mine = new Set(g.members.map((m) => m.row * 4096 + m.col));
-  for (const m of g.members) {
-    const t = turned(g, m, dir);
-    if (t.col < 0 || t.col >= state.cfg.cols) return false;
-    if (t.row < 0 || t.row >= state.mapRows) return false;
-    const k = t.row * 4096 + t.col;
-    if (!mine.has(k) && occ.has(k)) return false;
-  }
-  return true;
-}
-
 function canStep(state, occ, g) {
   const dr = g.axis === 'v' ? g.dir : 0;
   const dc = g.axis === 'h' ? g.dir : 0;
@@ -117,17 +97,6 @@ function placeGroup(state, g) {
   const { cell, brickGap } = state.cfg;
   const half = brickGap / 2;
 
-  if (g.axis === 'r') {
-    // Between quarter turns the members ride an arc around the pivot. Their
-    // squares stay axis-aligned, so collision stays a plain box test.
-    const a = g.dir * g.angle, cos = Math.cos(a), sin = Math.sin(a);
-    for (const m of g.members) {
-      const dr = m.row - g.pr, dc = m.col - g.pc;
-      m.x = (g.pc + dc * cos - dr * sin) * cell + half;
-      m.y = (g.pr + dc * sin + dr * cos) * cell + half;
-    }
-    return;
-  }
   for (const m of g.members) {
     m.x = m.col * cell + half + (g.axis === 'h' ? g.dir * g.off : 0);
     m.y = m.row * cell + half + (g.axis === 'v' ? g.dir * g.off : 0);
@@ -140,25 +109,6 @@ function stepGroups(state, dt) {
   const { cell } = state.cfg;
   for (const g of state.groups) {
     if (!g.members.length) continue;
-
-    if (g.axis === 'r') {
-      // Only ever aligned or part-way through one quarter; check at the moment
-      // it is square to the grid, so a blocked turn reverses before it overlaps.
-      if (g.angle === 0 && !canTurn(state, occ, g, g.dir)) {
-        g.dir = -g.dir;
-        if (!canTurn(state, occ, g, g.dir)) { placeGroup(state, g); continue; }
-      }
-      g.angle += state.cfg.spinSpeed * dt;
-      if (g.angle >= Math.PI / 2) {
-        for (const m of g.members) {
-          const t = turned(g, m, g.dir);
-          m.row = t.row; m.col = t.col;
-        }
-        g.angle = 0;
-      }
-      placeGroup(state, g);
-      continue;
-    }
 
     if (g.off === 0 && !canStep(state, occ, g)) {
       g.dir = -g.dir;

@@ -258,7 +258,7 @@ dialog::backdrop { background: rgba(8,10,18,.62); }
   <header>
     <div class="wordmark">
       <h1>Map Editor</h1>
-      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 17</span>
+      <span class="spec">36 &times; 40 cells &middot; 720 &times; 1000 px &middot; build 18</span>
     </div>
     <div class="actions">
       <button class="btn" id="btn-import">Import PNG</button>
@@ -363,9 +363,9 @@ const GRID_W = COLS * CELL, GRID_H = PLAY_ROWS * CELL, STRIP_H = DOC_ROWS * CELL
 /* Direction lives in a mark in the cell's top-left corner, so the body of the
    cell is free to carry the colour it was painted. Must match src/imagemap.js. */
 const MARK_INSET = 0.12, MARK_SIZE = 0.3;
-const MARK_COLOUR = { h: "#FF0000", v: "#00FF00", r: "#0000FF" };
-const isBrick = (t) => t === "brick" || t === "brickLR" || t === "brickUD" || t === "brickRot";
-const AXIS_OF = { brickLR: "h", wallLR: "h", brickUD: "v", wallUD: "v", brickRot: "r", wallRot: "r" };
+const MARK_COLOUR = { h: "#FF0000", v: "#00FF00" };
+const isBrick = (t) => t === "brick" || t === "brickLR" || t === "brickUD";
+const AXIS_OF = { brickLR: "h", wallLR: "h", brickUD: "v", wallUD: "v" };
 const axisOf = (t) => AXIS_OF[t] ?? null;
 
 const TYPES = {
@@ -375,11 +375,9 @@ const TYPES = {
   wallUD:  { nm: "Wall — moves UD", hex: "black + ↕", fill: "#000000", arrow: "↕" },
   brickLR: { nm: "Brick — moves LR",hex: "any + ↔",   fill: "#FF4E6B", arrow: "↔" },
   brickUD: { nm: "Brick — moves UD",hex: "any + ↕",   fill: "#FF4E6B", arrow: "↕" },
-  wallRot: { nm: "Wall — turns",    hex: "black + ↻", fill: "#000000", arrow: "↻" },
-  brickRot:{ nm: "Brick — turns",   hex: "any + ↻",   fill: "#FF4E6B", arrow: "↻" },
   brick:   { nm: "Brick",           hex: "any",     fill: "#FF4E6B", arrow: "" },
 };
-const ORDER = ["empty", "wall", "wallLR", "wallUD", "wallRot", "brickLR", "brickUD", "brickRot", "brick"];
+const ORDER = ["empty", "wall", "wallLR", "wallUD", "brickLR", "brickUD", "brick"];
 const SAFE = ["#FF4E6B","#FF7A4D","#FFB13D","#FFE05C","#8BE07A","#48C9F0","#8B7BF5",
               "#7CE0FF","#5CC2F5","#4AA4EA","#5B8BE0","#7B78DE","#9A6CD6","#B96BCB"];
 
@@ -1004,7 +1002,7 @@ function setColour(hex) {
   colour = hex.toUpperCase();
   $("#colour").value = colour;
   $("#colour-hex").textContent = colour;
-  for (const k of ["brick", "brickLR", "brickUD", "brickRot"]) {
+  for (const k of ["brick", "brickLR", "brickUD"]) {
     TYPES[k].fill = colour;
     toolsEl.querySelector(`[data-tool="${k}"] .chip`).style.background = colour;
   }
@@ -1124,12 +1122,8 @@ function importImage(img) {
         const my = Math.min(img.height - 1, Math.floor((r + MARK_INSET) * ch));
         const i = (my * img.width + mx) * 4;
         const axis = markAxisOf(data[i], data[i + 1], data[i + 2], data[i + 3]);
-        if (axis) {
-          const wall = cell.t === "wall";
-          cell.t = { h: wall ? "wallLR" : "brickLR",
-                     v: wall ? "wallUD" : "brickUD",
-                     r: wall ? "wallRot" : "brickRot" }[axis];
-        }
+        if (axis) cell.t = cell.t === "wall" ? (axis === "h" ? "wallLR" : "wallUD")
+                                            : (axis === "h" ? "brickLR" : "brickUD");
       }
       cells[r][c] = cell;
     }
@@ -1143,7 +1137,6 @@ function markAxisOf(r, g, b, a) {
   if (a < 128) return null;
   if (Math.hypot(r - 255, g, b) < 50) return "h";
   if (Math.hypot(r, g - 255, b) < 50) return "v";
-  if (Math.hypot(r, g, b - 255) < 50) return "r";
   return null;
 }
 function classify(r, g, b, a) {
